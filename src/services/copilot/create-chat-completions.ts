@@ -51,11 +51,17 @@ export const createChatCompletions = async (
         "Unable to connect to GitHub Copilot service. Please check your network connection.",
       )
     }
-    throw createServiceUnavailableError("GitHub Copilot service is temporarily unavailable")
+    throw createServiceUnavailableError(
+      "GitHub Copilot service is temporarily unavailable",
+    )
   }
 
   if (!response.ok) {
-    consola.error("Failed to create chat completions", response.status, response.statusText)
+    consola.error(
+      "Failed to create chat completions",
+      response.status,
+      response.statusText,
+    )
 
     // Handle specific error status codes
     if (response.status === 401) {
@@ -63,7 +69,9 @@ export const createChatCompletions = async (
     }
 
     if (response.status === 503) {
-      throw createServiceUnavailableError("GitHub Copilot service is temporarily unavailable")
+      throw createServiceUnavailableError(
+        "GitHub Copilot service is temporarily unavailable",
+      )
     }
 
     if (response.status === 504) {

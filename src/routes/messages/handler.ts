@@ -98,7 +98,10 @@ export async function handleCompletion(c: Context) {
           type: "error",
           error: {
             type: "internal_error",
-            message: error instanceof Error ? error.message : "An error occurred during streaming",
+            message:
+              error instanceof Error ?
+                error.message
+              : "An error occurred during streaming",
           },
         }),
       })

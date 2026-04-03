@@ -74,7 +74,10 @@ export async function handleCompletion(c: Context) {
         data: JSON.stringify({
           error: {
             type: "internal_error",
-            message: error instanceof Error ? error.message : "An error occurred during streaming",
+            message:
+              error instanceof Error ?
+                error.message
+              : "An error occurred during streaming",
           },
         }),
       })
