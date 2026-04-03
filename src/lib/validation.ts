@@ -3,10 +3,6 @@
  * Based on api-reference.md and error-codes.md specifications
  */
 
-import {
-  createInvalidRequestError,
-  createValidationError,
-} from "~/lib/error"
 import type {
   AnthropicMessage,
   AnthropicMessagesPayload,
@@ -18,6 +14,8 @@ import type {
   Message,
   Tool,
 } from "~/services/copilot/create-chat-completions"
+
+import { createInvalidRequestError, createValidationError } from "~/lib/error"
 
 /**
  * Validate Anthropic Messages API payload
@@ -33,11 +31,15 @@ export function validateAnthropicPayload(
 
   // Required fields validation
   if (!p.model || typeof p.model !== "string") {
-    throw createInvalidRequestError("model: required field missing or invalid type")
+    throw createInvalidRequestError(
+      "model: required field missing or invalid type",
+    )
   }
 
   if (!p.messages || !Array.isArray(p.messages)) {
-    throw createInvalidRequestError("messages: required field missing or must be an array")
+    throw createInvalidRequestError(
+      "messages: required field missing or must be an array",
+    )
   }
 
   if (p.messages.length === 0) {
@@ -45,7 +47,9 @@ export function validateAnthropicPayload(
   }
 
   if (typeof p.max_tokens !== "number") {
-    throw createInvalidRequestError("max_tokens: required field missing or must be a number")
+    throw createInvalidRequestError(
+      "max_tokens: required field missing or must be a number",
+    )
   }
 
   // Validate max_tokens range
@@ -88,10 +92,12 @@ export function validateAnthropicPayload(
   }
 
   // Validate stream if provided
-  if (p.stream !== undefined && p.stream !== null) {
-    if (typeof p.stream !== "boolean") {
-      throw createValidationError("stream: must be a boolean")
-    }
+  if (
+    p.stream !== undefined
+    && p.stream !== null
+    && typeof p.stream !== "boolean"
+  ) {
+    throw createValidationError("stream: must be a boolean")
   }
 
   // Validate messages array
@@ -102,15 +108,21 @@ export function validateAnthropicPayload(
   // Validate system if provided
   if (p.system !== undefined && p.system !== null) {
     if (typeof p.system !== "string" && !Array.isArray(p.system)) {
-      throw createValidationError("system: must be a string or array of text blocks")
+      throw createValidationError(
+        "system: must be a string or array of text blocks",
+      )
     }
     if (Array.isArray(p.system)) {
       for (const block of p.system) {
         if (!block || typeof block !== "object" || block.type !== "text") {
-          throw createValidationError("system: array elements must be text blocks with type 'text'")
+          throw createValidationError(
+            "system: array elements must be text blocks with type 'text'",
+          )
         }
         if (typeof block.text !== "string") {
-          throw createValidationError("system: text blocks must have a 'text' string field")
+          throw createValidationError(
+            "system: text blocks must have a 'text' string field",
+          )
         }
       }
     }
@@ -123,7 +135,9 @@ export function validateAnthropicPayload(
     }
     for (const seq of p.stop_sequences) {
       if (typeof seq !== "string") {
-        throw createValidationError("stop_sequences: all elements must be strings")
+        throw createValidationError(
+          "stop_sequences: all elements must be strings",
+        )
       }
     }
   }
@@ -145,10 +159,17 @@ export function validateAnthropicPayload(
     }
     const validTypes = ["auto", "any", "tool", "none"]
     if (!validTypes.includes(p.tool_choice.type)) {
-      throw createValidationError(`tool_choice.type: must be one of ${validTypes.join(", ")}`)
+      throw createValidationError(
+        `tool_choice.type: must be one of ${validTypes.join(", ")}`,
+      )
     }
-    if (p.tool_choice.type === "tool" && typeof p.tool_choice.name !== "string") {
-      throw createValidationError("tool_choice.name: required when type is 'tool'")
+    if (
+      p.tool_choice.type === "tool"
+      && typeof p.tool_choice.name !== "string"
+    ) {
+      throw createValidationError(
+        "tool_choice.name: required when type is 'tool'",
+      )
     }
   }
 
@@ -160,10 +181,14 @@ export function validateAnthropicPayload(
     if (p.thinking.type !== "enabled") {
       throw createValidationError("thinking.type: must be 'enabled'")
     }
-    if (p.thinking.budget_tokens !== undefined) {
-      if (typeof p.thinking.budget_tokens !== "number" || p.thinking.budget_tokens <= 0) {
-        throw createValidationError("thinking.budget_tokens: must be a positive number")
-      }
+    if (
+      p.thinking.budget_tokens !== undefined
+      && (typeof p.thinking.budget_tokens !== "number"
+        || p.thinking.budget_tokens <= 0)
+    ) {
+      throw createValidationError(
+        "thinking.budget_tokens: must be a positive number",
+      )
     }
   }
 
@@ -171,7 +196,9 @@ export function validateAnthropicPayload(
   if (p.service_tier !== undefined && p.service_tier !== null) {
     const validTiers = ["auto", "standard_only"]
     if (!validTiers.includes(p.service_tier)) {
-      throw createValidationError(`service_tier: must be one of ${validTiers.join(", ")}`)
+      throw createValidationError(
+        `service_tier: must be one of ${validTiers.join(", ")}`,
+      )
     }
   }
 
@@ -180,7 +207,10 @@ export function validateAnthropicPayload(
     if (typeof p.metadata !== "object") {
       throw createValidationError("metadata: must be an object")
     }
-    if (p.metadata.user_id !== undefined && typeof p.metadata.user_id !== "string") {
+    if (
+      p.metadata.user_id !== undefined
+      && typeof p.metadata.user_id !== "string"
+    ) {
       throw createValidationError("metadata.user_id: must be a string")
     }
   }
@@ -192,7 +222,9 @@ export function validateAnthropicPayload(
  */
 export function validateAnthropicCountTokensPayload(
   payload: unknown,
-): asserts payload is Omit<AnthropicMessagesPayload, "max_tokens"> & { max_tokens?: number } {
+): asserts payload is Omit<AnthropicMessagesPayload, "max_tokens"> & {
+  max_tokens?: number
+} {
   if (!payload || typeof payload !== "object") {
     throw createInvalidRequestError("Request body must be a valid JSON object")
   }
@@ -201,11 +233,15 @@ export function validateAnthropicCountTokensPayload(
 
   // Required fields validation (max_tokens is optional for count_tokens)
   if (!p.model || typeof p.model !== "string") {
-    throw createInvalidRequestError("model: required field missing or invalid type")
+    throw createInvalidRequestError(
+      "model: required field missing or invalid type",
+    )
   }
 
   if (!p.messages || !Array.isArray(p.messages)) {
-    throw createInvalidRequestError("messages: required field missing or must be an array")
+    throw createInvalidRequestError(
+      "messages: required field missing or must be an array",
+    )
   }
 
   if (p.messages.length === 0) {
@@ -264,15 +300,21 @@ export function validateAnthropicCountTokensPayload(
   // Validate system if provided
   if (p.system !== undefined && p.system !== null) {
     if (typeof p.system !== "string" && !Array.isArray(p.system)) {
-      throw createValidationError("system: must be a string or array of text blocks")
+      throw createValidationError(
+        "system: must be a string or array of text blocks",
+      )
     }
     if (Array.isArray(p.system)) {
       for (const block of p.system) {
         if (!block || typeof block !== "object" || block.type !== "text") {
-          throw createValidationError("system: array elements must be text blocks with type 'text'")
+          throw createValidationError(
+            "system: array elements must be text blocks with type 'text'",
+          )
         }
         if (typeof block.text !== "string") {
-          throw createValidationError("system: text blocks must have a 'text' string field")
+          throw createValidationError(
+            "system: text blocks must have a 'text' string field",
+          )
         }
       }
     }
@@ -285,7 +327,9 @@ export function validateAnthropicCountTokensPayload(
     }
     for (const seq of p.stop_sequences) {
       if (typeof seq !== "string") {
-        throw createValidationError("stop_sequences: all elements must be strings")
+        throw createValidationError(
+          "stop_sequences: all elements must be strings",
+        )
       }
     }
   }
@@ -307,10 +351,17 @@ export function validateAnthropicCountTokensPayload(
     }
     const validTypes = ["auto", "any", "tool", "none"]
     if (!validTypes.includes(p.tool_choice.type)) {
-      throw createValidationError(`tool_choice.type: must be one of ${validTypes.join(", ")}`)
+      throw createValidationError(
+        `tool_choice.type: must be one of ${validTypes.join(", ")}`,
+      )
     }
-    if (p.tool_choice.type === "tool" && typeof p.tool_choice.name !== "string") {
-      throw createValidationError("tool_choice.name: required when type is 'tool'")
+    if (
+      p.tool_choice.type === "tool"
+      && typeof p.tool_choice.name !== "string"
+    ) {
+      throw createValidationError(
+        "tool_choice.name: required when type is 'tool'",
+      )
     }
   }
 
@@ -322,10 +373,14 @@ export function validateAnthropicCountTokensPayload(
     if (p.thinking.type !== "enabled") {
       throw createValidationError("thinking.type: must be 'enabled'")
     }
-    if (p.thinking.budget_tokens !== undefined) {
-      if (typeof p.thinking.budget_tokens !== "number" || p.thinking.budget_tokens <= 0) {
-        throw createValidationError("thinking.budget_tokens: must be a positive number")
-      }
+    if (
+      p.thinking.budget_tokens !== undefined
+      && (typeof p.thinking.budget_tokens !== "number"
+        || p.thinking.budget_tokens <= 0)
+    ) {
+      throw createValidationError(
+        "thinking.budget_tokens: must be a positive number",
+      )
     }
   }
 
@@ -333,7 +388,9 @@ export function validateAnthropicCountTokensPayload(
   if (p.service_tier !== undefined && p.service_tier !== null) {
     const validTiers = ["auto", "standard_only"]
     if (!validTiers.includes(p.service_tier)) {
-      throw createValidationError(`service_tier: must be one of ${validTiers.join(", ")}`)
+      throw createValidationError(
+        `service_tier: must be one of ${validTiers.join(", ")}`,
+      )
     }
   }
 
@@ -342,7 +399,10 @@ export function validateAnthropicCountTokensPayload(
     if (typeof p.metadata !== "object") {
       throw createValidationError("metadata: must be an object")
     }
-    if (p.metadata.user_id !== undefined && typeof p.metadata.user_id !== "string") {
+    if (
+      p.metadata.user_id !== undefined
+      && typeof p.metadata.user_id !== "string"
+    ) {
       throw createValidationError("metadata.user_id: must be a string")
     }
   }
@@ -351,7 +411,10 @@ export function validateAnthropicCountTokensPayload(
 /**
  * Validate a single Anthropic message
  */
-function validateAnthropicMessage(message: unknown, index: number): asserts message is AnthropicMessage {
+function validateAnthropicMessage(
+  message: unknown,
+  index: number,
+): asserts message is AnthropicMessage {
   if (!message || typeof message !== "object") {
     throw createValidationError(`messages[${index}]: must be an object`)
   }
@@ -361,22 +424,30 @@ function validateAnthropicMessage(message: unknown, index: number): asserts mess
   // Validate role
   const validRoles = ["user", "assistant"]
   if (!m.role || !validRoles.includes(m.role)) {
-    throw createValidationError(`messages[${index}].role: must be one of ${validRoles.join(", ")}`)
+    throw createValidationError(
+      `messages[${index}].role: must be one of ${validRoles.join(", ")}`,
+    )
   }
 
   // Validate content
   if (m.content === undefined || m.content === null) {
-    throw createValidationError(`messages[${index}].content: required field missing`)
+    throw createValidationError(
+      `messages[${index}].content: required field missing`,
+    )
   }
 
   if (typeof m.content !== "string" && !Array.isArray(m.content)) {
-    throw createValidationError(`messages[${index}].content: must be a string or array`)
+    throw createValidationError(
+      `messages[${index}].content: must be a string or array`,
+    )
   }
 
   // Validate content blocks if array
   if (Array.isArray(m.content)) {
     if (m.content.length === 0) {
-      throw createValidationError(`messages[${index}].content: array must not be empty`)
+      throw createValidationError(
+        `messages[${index}].content: array must not be empty`,
+      )
     }
 
     for (let i = 0; i < m.content.length; i++) {
@@ -409,88 +480,116 @@ function validateAnthropicContentBlock(
   }
 
   // Validate based on block type
-  if (b.type === "text") {
-    if (typeof b.text !== "string") {
+  switch (b.type) {
+    case "text": {
+      if (typeof b.text !== "string") {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].text: must be a string`,
+        )
+      }
+
+      break
+    }
+    case "image": {
+      const imgBlock = b as any
+      if (!imgBlock.source || typeof imgBlock.source !== "object") {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].source: required for image blocks`,
+        )
+      }
+      if (imgBlock.source.type !== "base64") {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].source.type: must be 'base64'`,
+        )
+      }
+      const validMediaTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+      ]
+      if (!validMediaTypes.includes(imgBlock.source.media_type)) {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].source.media_type: must be one of ${validMediaTypes.join(", ")}`,
+        )
+      }
+      if (typeof imgBlock.source.data !== "string") {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].source.data: must be a base64 string`,
+        )
+      }
+
+      break
+    }
+    case "tool_result": {
+      const toolBlock = b as any
+      if (typeof toolBlock.tool_use_id !== "string") {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].tool_use_id: required for tool_result blocks`,
+        )
+      }
+      if (toolBlock.content === undefined) {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].content: required for tool_result blocks`,
+        )
+      }
+      if (
+        toolBlock.is_error !== undefined
+        && typeof toolBlock.is_error !== "boolean"
+      ) {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].is_error: must be a boolean`,
+        )
+      }
+
+      break
+    }
+    case "tool_use": {
+      // Tool use blocks are typically in assistant messages
+      const toolBlock = b as any
+      if (typeof toolBlock.id !== "string") {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].id: required for tool_use blocks`,
+        )
+      }
+      if (typeof toolBlock.name !== "string") {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].name: required for tool_use blocks`,
+        )
+      }
+      if (!toolBlock.input || typeof toolBlock.input !== "object") {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].input: must be an object`,
+        )
+      }
+
+      break
+    }
+    case "thinking": {
+      const thinkingBlock = b as any
+      if (typeof thinkingBlock.thinking !== "string") {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].thinking: must be a string`,
+        )
+      }
+
+      break
+    }
+    default: {
       throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].text: must be a string`,
+        `messages[${messageIndex}].content[${blockIndex}].type: unsupported block type '${b.type}'`,
       )
     }
-  } else if (b.type === "image") {
-    const imgBlock = b as any
-    if (!imgBlock.source || typeof imgBlock.source !== "object") {
-      throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].source: required for image blocks`,
-      )
-    }
-    if (imgBlock.source.type !== "base64") {
-      throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].source.type: must be 'base64'`,
-      )
-    }
-    const validMediaTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"]
-    if (!validMediaTypes.includes(imgBlock.source.media_type)) {
-      throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].source.media_type: must be one of ${validMediaTypes.join(", ")}`,
-      )
-    }
-    if (typeof imgBlock.source.data !== "string") {
-      throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].source.data: must be a base64 string`,
-      )
-    }
-  } else if (b.type === "tool_result") {
-    const toolBlock = b as any
-    if (typeof toolBlock.tool_use_id !== "string") {
-      throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].tool_use_id: required for tool_result blocks`,
-      )
-    }
-    if (toolBlock.content === undefined) {
-      throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].content: required for tool_result blocks`,
-      )
-    }
-    if (toolBlock.is_error !== undefined && typeof toolBlock.is_error !== "boolean") {
-      throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].is_error: must be a boolean`,
-      )
-    }
-  } else if (b.type === "tool_use") {
-    // Tool use blocks are typically in assistant messages
-    const toolBlock = b as any
-    if (typeof toolBlock.id !== "string") {
-      throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].id: required for tool_use blocks`,
-      )
-    }
-    if (typeof toolBlock.name !== "string") {
-      throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].name: required for tool_use blocks`,
-      )
-    }
-    if (!toolBlock.input || typeof toolBlock.input !== "object") {
-      throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].input: must be an object`,
-      )
-    }
-  } else if (b.type === "thinking") {
-    const thinkingBlock = b as any
-    if (typeof thinkingBlock.thinking !== "string") {
-      throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].thinking: must be a string`,
-      )
-    }
-  } else {
-    throw createValidationError(
-      `messages[${messageIndex}].content[${blockIndex}].type: unsupported block type '${b.type}'`,
-    )
   }
 }
 
 /**
  * Validate Anthropic tool definition
  */
-function validateAnthropicTool(tool: unknown, index: number): asserts tool is AnthropicTool {
+function validateAnthropicTool(
+  tool: unknown,
+  index: number,
+): asserts tool is AnthropicTool {
   if (!tool || typeof tool !== "object") {
     throw createValidationError(`tools[${index}]: must be an object`)
   }
@@ -506,7 +605,9 @@ function validateAnthropicTool(tool: unknown, index: number): asserts tool is An
   }
 
   if (!t.input_schema || typeof t.input_schema !== "object") {
-    throw createValidationError(`tools[${index}].input_schema: required and must be an object (JSON Schema)`)
+    throw createValidationError(
+      `tools[${index}].input_schema: required and must be an object (JSON Schema)`,
+    )
   }
 }
 
@@ -524,11 +625,15 @@ export function validateChatCompletionsPayload(
 
   // Required fields
   if (!p.model || typeof p.model !== "string") {
-    throw createInvalidRequestError("model: required field missing or invalid type")
+    throw createInvalidRequestError(
+      "model: required field missing or invalid type",
+    )
   }
 
   if (!p.messages || !Array.isArray(p.messages)) {
-    throw createInvalidRequestError("messages: required field missing or must be an array")
+    throw createInvalidRequestError(
+      "messages: required field missing or must be an array",
+    )
   }
 
   if (p.messages.length === 0) {
@@ -581,10 +686,12 @@ export function validateChatCompletionsPayload(
     }
   }
 
-  if (p.n !== undefined && p.n !== null) {
-    if (typeof p.n !== "number" || !Number.isInteger(p.n) || p.n < 1) {
-      throw createValidationError("n: must be a positive integer")
-    }
+  if (
+    p.n !== undefined
+    && p.n !== null
+    && (typeof p.n !== "number" || !Number.isInteger(p.n) || p.n < 1)
+  ) {
+    throw createValidationError("n: must be a positive integer")
   }
 
   // Validate messages
@@ -607,14 +714,21 @@ export function validateChatCompletionsPayload(
     if (typeof p.tool_choice === "string") {
       const validChoices = ["none", "auto", "required"]
       if (!validChoices.includes(p.tool_choice)) {
-        throw createValidationError(`tool_choice: must be one of ${validChoices.join(", ")} or an object`)
+        throw createValidationError(
+          `tool_choice: must be one of ${validChoices.join(", ")} or an object`,
+        )
       }
     } else if (typeof p.tool_choice === "object") {
       if (p.tool_choice.type !== "function") {
         throw createValidationError("tool_choice.type: must be 'function'")
       }
-      if (!p.tool_choice.function || typeof p.tool_choice.function.name !== "string") {
-        throw createValidationError("tool_choice.function.name: required when specifying a function")
+      if (
+        !p.tool_choice.function
+        || typeof p.tool_choice.function.name !== "string"
+      ) {
+        throw createValidationError(
+          "tool_choice.function.name: required when specifying a function",
+        )
       }
     } else {
       throw createValidationError("tool_choice: must be a string or object")
@@ -629,14 +743,20 @@ export function validateChatCompletionsPayload(
     if (Array.isArray(p.stop)) {
       for (const seq of p.stop) {
         if (typeof seq !== "string") {
-          throw createValidationError("stop: all array elements must be strings")
+          throw createValidationError(
+            "stop: all array elements must be strings",
+          )
         }
       }
     }
   }
 
   // Validate stream
-  if (p.stream !== undefined && p.stream !== null && typeof p.stream !== "boolean") {
+  if (
+    p.stream !== undefined
+    && p.stream !== null
+    && typeof p.stream !== "boolean"
+  ) {
     throw createValidationError("stream: must be a boolean")
   }
 }
@@ -644,7 +764,10 @@ export function validateChatCompletionsPayload(
 /**
  * Validate a single chat message
  */
-function validateChatMessage(message: unknown, index: number): asserts message is Message {
+function validateChatMessage(
+  message: unknown,
+  index: number,
+): asserts message is Message {
   if (!message || typeof message !== "object") {
     throw createValidationError(`messages[${index}]: must be an object`)
   }
@@ -654,36 +777,46 @@ function validateChatMessage(message: unknown, index: number): asserts message i
   // Validate role
   const validRoles = ["user", "assistant", "system", "tool", "developer"]
   if (!m.role || !validRoles.includes(m.role)) {
-    throw createValidationError(`messages[${index}].role: must be one of ${validRoles.join(", ")}`)
+    throw createValidationError(
+      `messages[${index}].role: must be one of ${validRoles.join(", ")}`,
+    )
   }
 
   // Content validation depends on role
-  if (m.role === "tool") {
-    if (typeof m.tool_call_id !== "string") {
-      throw createValidationError(`messages[${index}].tool_call_id: required for tool messages`)
-    }
+  if (m.role === "tool" && typeof m.tool_call_id !== "string") {
+    throw createValidationError(
+      `messages[${index}].tool_call_id: required for tool messages`,
+    )
   }
 
   // Validate content if present
   if (m.content !== undefined && m.content !== null) {
     if (typeof m.content !== "string" && !Array.isArray(m.content)) {
-      throw createValidationError(`messages[${index}].content: must be a string, array, or null`)
+      throw createValidationError(
+        `messages[${index}].content: must be a string, array, or null`,
+      )
     }
 
     if (Array.isArray(m.content)) {
       for (let i = 0; i < m.content.length; i++) {
         const part = m.content[i]
         if (!part || typeof part !== "object") {
-          throw createValidationError(`messages[${index}].content[${i}]: must be an object`)
+          throw createValidationError(
+            `messages[${index}].content[${i}]: must be an object`,
+          )
         }
 
         if (part.type === "text") {
           if (typeof part.text !== "string") {
-            throw createValidationError(`messages[${index}].content[${i}].text: must be a string`)
+            throw createValidationError(
+              `messages[${index}].content[${i}].text: must be a string`,
+            )
           }
         } else if (part.type === "image_url") {
           if (!part.image_url || typeof part.image_url.url !== "string") {
-            throw createValidationError(`messages[${index}].content[${i}].image_url.url: required`)
+            throw createValidationError(
+              `messages[${index}].content[${i}].image_url.url: required`,
+            )
           }
           if (part.image_url.detail !== undefined) {
             const validDetails = ["low", "high", "auto"]
@@ -705,22 +838,32 @@ function validateChatMessage(message: unknown, index: number): asserts message i
   // Validate tool_calls if present
   if (m.tool_calls !== undefined && m.tool_calls !== null) {
     if (!Array.isArray(m.tool_calls)) {
-      throw createValidationError(`messages[${index}].tool_calls: must be an array`)
+      throw createValidationError(
+        `messages[${index}].tool_calls: must be an array`,
+      )
     }
 
     for (let i = 0; i < m.tool_calls.length; i++) {
       const toolCall = m.tool_calls[i]
       if (!toolCall || typeof toolCall !== "object") {
-        throw createValidationError(`messages[${index}].tool_calls[${i}]: must be an object`)
+        throw createValidationError(
+          `messages[${index}].tool_calls[${i}]: must be an object`,
+        )
       }
       if (typeof toolCall.id !== "string") {
-        throw createValidationError(`messages[${index}].tool_calls[${i}].id: required`)
+        throw createValidationError(
+          `messages[${index}].tool_calls[${i}].id: required`,
+        )
       }
       if (toolCall.type !== "function") {
-        throw createValidationError(`messages[${index}].tool_calls[${i}].type: must be 'function'`)
+        throw createValidationError(
+          `messages[${index}].tool_calls[${i}].type: must be 'function'`,
+        )
       }
       if (!toolCall.function || typeof toolCall.function.name !== "string") {
-        throw createValidationError(`messages[${index}].tool_calls[${i}].function.name: required`)
+        throw createValidationError(
+          `messages[${index}].tool_calls[${i}].function.name: required`,
+        )
       }
       if (typeof toolCall.function.arguments !== "string") {
         throw createValidationError(
@@ -746,15 +889,22 @@ function validateChatTool(tool: unknown, index: number): asserts tool is Tool {
   }
 
   if (!t.function || typeof t.function !== "object") {
-    throw createValidationError(`tools[${index}].function: required and must be an object`)
+    throw createValidationError(
+      `tools[${index}].function: required and must be an object`,
+    )
   }
 
   if (typeof t.function.name !== "string") {
     throw createValidationError(`tools[${index}].function.name: required`)
   }
 
-  if (t.function.description !== undefined && typeof t.function.description !== "string") {
-    throw createValidationError(`tools[${index}].function.description: must be a string`)
+  if (
+    t.function.description !== undefined
+    && typeof t.function.description !== "string"
+  ) {
+    throw createValidationError(
+      `tools[${index}].function.description: must be a string`,
+    )
   }
 
   if (!t.function.parameters || typeof t.function.parameters !== "object") {

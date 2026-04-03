@@ -59,7 +59,8 @@ export function createInvalidRequestError(message: string): APIError {
 export function createRateLimitError(message?: string): APIError {
   return new APIError(
     "rate_limit_error",
-    message || "Rate limit exceeded. Please wait before making another request.",
+    message
+      || "Rate limit exceeded. Please wait before making another request.",
     429,
   )
 }
@@ -141,25 +142,42 @@ export async function forwardError(c: Context, error: unknown) {
     let errorMessage = errorText
 
     // Map HTTP status codes to error types
-    if (statusCode === 401) {
-      errorType = "authentication_error"
-      errorMessage = "Invalid or expired GitHub Copilot token"
-    } else if (statusCode === 429) {
-      errorType = "rate_limit_error"
-      errorMessage = "Rate limit exceeded. Please wait before making another request."
-    } else if (statusCode === 503) {
-      errorType = "service_unavailable"
-      errorMessage = "GitHub Copilot service is temporarily unavailable"
-    } else if (statusCode === 504) {
-      errorType = "timeout_error"
-      errorMessage = "Request to GitHub Copilot timed out"
-    } else if (statusCode >= 500) {
-      errorType = "internal_error"
-      errorMessage = "An unexpected error occurred"
-    } else if (statusCode === 400) {
-      errorType = "invalid_request_error"
-    } else if (statusCode === 422) {
-      errorType = "validation_error"
+    switch (statusCode) {
+      case 401: {
+        errorType = "authentication_error"
+        errorMessage = "Invalid or expired GitHub Copilot token"
+
+        break
+      }
+      case 429: {
+        errorType = "rate_limit_error"
+        errorMessage =
+          "Rate limit exceeded. Please wait before making another request."
+
+        break
+      }
+      case 503: {
+        errorType = "service_unavailable"
+        errorMessage = "GitHub Copilot service is temporarily unavailable"
+
+        break
+      }
+      case 504: {
+        errorType = "timeout_error"
+        errorMessage = "Request to GitHub Copilot timed out"
+
+        break
+      }
+      default: {
+        if (statusCode >= 500) {
+          errorType = "internal_error"
+          errorMessage = "An unexpected error occurred"
+        } else if (statusCode === 400) {
+          errorType = "invalid_request_error"
+        } else if (statusCode === 422) {
+          errorType = "validation_error"
+        }
+      }
     }
 
     return c.json(
