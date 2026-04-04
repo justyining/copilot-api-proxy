@@ -10,22 +10,23 @@ RUN bun run build
 FROM oven/bun:1.2.19-alpine AS runner
 WORKDIR /app
 
-# Create a non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S copilot -u 1001 -G nodejs
+# Create non-root user
+RUN addgroup -g 1001 -S copilot && \
+    adduser -S copilot -u 1001 -G copilot && \
+    mkdir -p /home/copilot/.local/share/copilot-api && \
+    chown -R copilot:copilot /home/copilot
 
 COPY ./package.json ./bun.lock ./
 RUN bun install --frozen-lockfile --production --ignore-scripts --no-cache
 
 COPY --from=builder /app/dist ./dist
 
-# Copy and prepare entrypoint script
+# Copy and set up entrypoint script with proper permissions
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Create necessary directories and set ownership
-RUN mkdir -p /home/copilot/.local/share/copilot-api && \
-    chown -R copilot:nodejs /home/copilot /app
+# Change ownership of app directory
+RUN chown -R copilot:copilot /app
 
 # Switch to non-root user
 USER copilot

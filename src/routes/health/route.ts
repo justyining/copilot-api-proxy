@@ -2,56 +2,56 @@ import { Hono } from "hono"
 
 import { state } from "~/lib/state"
 
-export const healthRoutes = new Hono()
+export const healthRoute = new Hono()
 
 /**
- * Liveness probe - checks if the server is running
- * Returns 200 OK if the server process is alive
+ * Liveness probe - checks if the server process is running
+ * This endpoint always returns 200 if the server is alive
  */
-healthRoutes.get("/", (c) => {
-  return c.json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-  })
+healthRoute.get("/", (c) => {
+  return c.json(
+    {
+      status: "ok",
+      timestamp: new Date().toISOString(),
+    },
+    200,
+  )
 })
 
 /**
- * Readiness probe - checks if the server is ready to handle requests
- * Returns 200 OK if tokens are available and the service is ready
- * Returns 503 Service Unavailable if not ready
+ * Readiness probe - checks if the server is ready to accept requests
+ * This endpoint checks if critical dependencies are initialized:
+ * - Copilot token is available
+ * - Models are cached
  */
-healthRoutes.get("/ready", (c) => {
-  const isReady = Boolean(state.githubToken && state.copilotToken)
+export const readyRoute = new Hono()
+
+readyRoute.get("/", (c) => {
+  const checks = {
+    copilotToken: Boolean(state.copilotToken),
+    models: (state.models?.data.length ?? 0) > 0,
+    vsCodeVersion: Boolean(state.vsCodeVersion),
+  }
+
+  const isReady = checks.copilotToken && checks.models && checks.vsCodeVersion
 
   if (!isReady) {
     return c.json(
       {
-        status: "unavailable",
-        message: "Service not ready - authentication required",
+        status: "not_ready",
+        checks,
         timestamp: new Date().toISOString(),
-        ready: false,
-        details: {
-          hasGithubToken: Boolean(state.githubToken),
-          hasCopilotToken: Boolean(state.copilotToken),
-          hasModels: Boolean(state.models),
-        },
       },
       503,
     )
   }
 
-  return c.json({
-    status: "ready",
-    message: "Service is ready to handle requests",
-    timestamp: new Date().toISOString(),
-    ready: true,
-    details: {
-      hasGithubToken: Boolean(state.githubToken),
-      hasCopilotToken: Boolean(state.copilotToken),
-      hasModels: Boolean(state.models),
-      accountType: state.accountType,
-      rateLimitEnabled: Boolean(state.rateLimitSeconds),
+  return c.json(
+    {
+      status: "ready",
+      checks,
+      timestamp: new Date().toISOString(),
     },
-  })
+    200,
+  )
 })

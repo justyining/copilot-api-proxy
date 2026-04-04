@@ -4,7 +4,7 @@ import { logger } from "hono/logger"
 
 import { completionRoutes } from "./routes/chat-completions/route"
 import { embeddingRoutes } from "./routes/embeddings/route"
-import { healthRoutes } from "./routes/health/route"
+import { healthRoute, readyRoute } from "./routes/health/route"
 import { messageRoutes } from "./routes/messages/route"
 import { modelRoutes } from "./routes/models/route"
 import { tokenRoute } from "./routes/token/route"
@@ -18,7 +18,8 @@ server.use(cors())
 server.get("/", (c) => c.text("Server running"))
 
 // Health check endpoints
-server.route("/health", healthRoutes)
+server.route("/health", healthRoute)
+server.route("/ready", readyRoute)
 
 server.route("/chat/completions", completionRoutes)
 server.route("/models", modelRoutes)

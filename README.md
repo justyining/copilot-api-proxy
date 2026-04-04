@@ -1,9 +1,12 @@
 # Copilot API Proxy
 
 > [!NOTE]
-> **Fork Notice:** This is a fork of [ericc-ch/copilot-api](https://github.com/ericc-ch/copilot-api).
-> This fork is maintained to explore experimental features and improvements while staying synchronized with the upstream project.
-> For the original project and official releases, please visit the upstream repository.
+> **Fork Information**
+> This is a fork of [ericc-ch/copilot-api](https://github.com/ericc-ch/copilot-api) maintained by [@justyining](https://github.com/justyining).
+>
+> **Fork Purpose**: This fork aims to explore improvements in code quality, security practices, testing coverage, and documentation while maintaining compatibility with the upstream project. For details on what's different, see [FORK_NOTES.md](./FORK_NOTES.md).
+>
+> **Upstream Sync**: This fork periodically syncs with the upstream repository. To use the official version, visit [ericc-ch/copilot-api](https://github.com/ericc-ch/copilot-api).
 
 > [!WARNING]
 > This is a reverse-engineered proxy of GitHub Copilot API. It is not supported by GitHub, and may break unexpectedly. Use at your own risk.
@@ -82,12 +85,13 @@ mkdir -p ./copilot-data
 
 # Run the container with a bind mount to persist the token
 # This ensures your authentication survives container restarts
+# Note: The container now runs as a non-root user (copilot:1001)
 
 docker run -p 4141:4141 -v $(pwd)/copilot-data:/home/copilot/.local/share/copilot-api copilot-api
 ```
 
 > **Note:**
-> The GitHub token and related data will be stored in `copilot-data` on your host. This is mapped to `/home/copilot/.local/share/copilot-api` inside the container, ensuring persistence across restarts.
+> The GitHub token and related data will be stored in `copilot-data` on your host. This is mapped to `/home/copilot/.local/share/copilot-api` inside the container (running as non-root user `copilot`), ensuring persistence across restarts.
 
 ### Docker with Environment Variables
 
@@ -246,12 +250,45 @@ New endpoints for monitoring your Copilot usage and quotas.
 
 ### Health Check Endpoints
 
-Health check endpoints for container orchestration and monitoring.
+Endpoints for container orchestration and monitoring.
 
-| Endpoint            | Method | Description                                                                                 |
-| ------------------- | ------ | ------------------------------------------------------------------------------------------- |
-| `GET /health`       | `GET`  | Liveness probe - returns 200 OK if the server process is running.                          |
-| `GET /health/ready` | `GET`  | Readiness probe - returns 200 OK if authenticated and ready to handle requests, 503 if not. |
+| Endpoint      | Method | Description                                                                      |
+| ------------- | ------ | -------------------------------------------------------------------------------- |
+| `GET /health` | `GET`  | Liveness probe - returns 200 if server is running.                              |
+| `GET /ready`  | `GET`  | Readiness probe - returns 200 if server is ready (token and models initialized). |
+
+## API Compatibility Matrix
+
+This proxy provides compatibility layers for both OpenAI and Anthropic APIs, but there are some limitations and differences to be aware of:
+
+| Capability              | Status            | Notes                                                                 |
+| ----------------------- | ----------------- | --------------------------------------------------------------------- |
+| Chat Completions        | ✅ Supported       | Compatible with OpenAI `/v1/chat/completions` format                  |
+| Messages API            | ✅ Supported       | Compatible with Anthropic `/v1/messages` format                       |
+| Models Listing          | ✅ Supported       | Returns available Copilot models                                      |
+| Embeddings              | ✅ Supported       | Basic embedding support via Copilot API                               |
+| Token Counting          | ✅ Supported       | Anthropic-style `/v1/messages/count_tokens` endpoint                  |
+| Streaming               | ✅ Supported       | SSE streaming for both OpenAI and Anthropic formats                   |
+| Tool/Function Calling   | ⚠️ Partial Support | Supported but may have edge cases with complex tool definitions       |
+| Vision/Image Input      | ⚠️ Partial Support | Depends on Copilot model capabilities; format translation may vary    |
+| Multiple Tool Calls     | ⚠️ Partial Support | Parallel tool calls supported but test coverage is limited            |
+| System Messages         | ✅ Supported       | Translated to Copilot-compatible format                               |
+| Temperature/Top-p       | ✅ Supported       | Passed through to Copilot API                                         |
+| Max Tokens              | ✅ Supported       | Auto-filled from model capabilities if not provided                   |
+| Stop Sequences          | ⚠️ Partial Support | Supported but behavior may differ from OpenAI/Anthropic               |
+| Logprobs                | ❌ Not Supported   | Not available in Copilot API                                          |
+| Response Format (JSON)  | ⚠️ Limited         | JSON mode support depends on underlying Copilot model                 |
+| Audio/Multimodal        | ❌ Not Supported   | Currently only text and image inputs supported                        |
+| Fine-tuned Models       | ❌ Not Supported   | Only standard Copilot models available                                |
+| Batch API               | ❌ Not Supported   | No batch processing support                                           |
+
+### Known API Differences
+
+- **Token Limits**: Token limits are determined by the underlying Copilot model and may differ from OpenAI/Anthropic equivalents
+- **Error Formats**: Error responses attempt to match OpenAI/Anthropic formats but may have slight variations
+- **Rate Limiting**: Uses custom rate limiting (via `--rate-limit` flag) rather than OpenAI/Anthropic rate limit headers
+- **Model Names**: Model IDs are Copilot-specific (e.g., `gpt-4.1`) and differ from OpenAI/Anthropic naming
+- **Streaming Format**: While compatible, SSE event structure may have minor differences in edge cases
 
 ## Example Usage
 
@@ -428,7 +465,7 @@ To minimize risks and use this proxy responsibly:
 6. **Secure Your Deployment**: Follow the security guidelines in [SECURITY.md](SECURITY.md)
 7. **Have a Backup Plan**: Don't rely solely on this proxy for critical workflows
 
-## Running from Source
+## Using from Source
 
 The project can be run from source in several ways:
 
@@ -444,6 +481,32 @@ bun run dev
 bun run start
 ```
 
+## Security Best Practices
+
+> [!IMPORTANT]
+> This proxy handles sensitive GitHub and Copilot tokens. Follow these security practices:
+
+### Token Security
+- **Never share tokens**: The `--show-token` flag is for debugging only. Never use it in shared terminals, CI/CD logs, or screenshots.
+- **Secure the `/token` endpoint**: This endpoint exposes your Copilot token. Only use it locally or behind proper authentication.
+- **Environment variables**: When using Docker with `GH_TOKEN`, ensure your container runtime is secure and logs are protected.
+- **Token rotation**: Regularly rotate your GitHub tokens and reauthenticate.
+
+### API Endpoint Security
+- **`/token` endpoint**: Consider this endpoint sensitive. In production deployments, either:
+  - Disable it completely
+  - Restrict access to localhost only
+  - Put it behind authentication/authorization
+- **Manual approval mode**: Use `--manual` flag when you want explicit control over each request.
+- **Rate limiting**: Always use `--rate-limit` to prevent excessive automated usage that could trigger GitHub's abuse detection.
+
+### Deployment Security
+- **Docker**: Run containers with minimal privileges. Consider using non-root users (see [SECURITY.md](./SECURITY.md)).
+- **Network exposure**: Only expose the API to trusted networks. Use reverse proxies with authentication for internet-facing deployments.
+- **Logging**: Disable verbose logging (`--verbose`) in production to prevent token leakage in logs.
+
+For more security information and responsible disclosure, see [SECURITY.md](./SECURITY.md).
+
 ## Usage Tips
 
 - To avoid hitting GitHub Copilot's rate limits, you can use the following flags:
@@ -451,3 +514,127 @@ bun run start
   - `--rate-limit <seconds>`: Enforces a minimum time interval between requests. For example, `copilot-api start --rate-limit 30` will ensure there's at least a 30-second gap between requests.
   - `--wait`: Use this with `--rate-limit`. It makes the server wait for the cooldown period to end instead of rejecting the request with an error. This is useful for clients that don't automatically retry on rate limit errors.
 - If you have a GitHub business or enterprise plan account with Copilot, use the `--account-type` flag (e.g., `--account-type business`). See the [official documentation](https://docs.github.com/en/enterprise-cloud@latest/copilot/managing-copilot/managing-github-copilot-in-your-organization/managing-access-to-github-copilot-in-your-organization/managing-github-copilot-access-to-your-organizations-network#configuring-copilot-subscription-based-network-routing-for-your-enterprise-or-organization) for more details.
+
+## Known Limitations and Risks
+
+> [!CAUTION]
+> **Important**: This is a reverse-engineered, unofficial proxy. Please read these limitations carefully before use.
+
+### Fundamental Limitations
+
+#### 1. Not Officially Supported
+- This proxy is **not endorsed or supported by GitHub**
+- Uses reverse-engineered API endpoints that may change or break without notice
+- No guarantees of continued functionality
+- GitHub may modify their API at any time, breaking compatibility
+
+#### 2. Account Risk
+**Risk of GitHub Account Restrictions**:
+- Excessive automated usage may trigger GitHub's abuse detection systems
+- You may receive security warnings from GitHub
+- Continued anomalous activity could result in:
+  - Temporary suspension of Copilot access
+  - Account restrictions or limitations
+  - Service interruptions
+
+**What triggers abuse detection**:
+- High-frequency automated requests
+- Bulk or batch processing
+- Rapid consecutive requests
+- Unusual usage patterns
+
+**How to minimize risk**:
+- Always use `--rate-limit` flag (minimum 30 seconds recommended)
+- Enable `--manual` mode for sensitive operations
+- Avoid automated/scripted bulk usage
+- Monitor your usage regularly with `check-usage` command
+- Review [GitHub's Acceptable Use Policies](https://docs.github.com/site-policy/acceptable-use-policies/github-acceptable-use-policies)
+
+#### 3. Service Reliability
+- May break unexpectedly due to upstream API changes
+- No SLA or uptime guarantees
+- Token refresh may fail without warning
+- Authentication flow may change
+
+### Technical Limitations
+
+#### 4. API Compatibility Gaps
+See the [API Compatibility Matrix](#api-compatibility-matrix) for full details. Notable limitations:
+- No logprobs support
+- Limited JSON response mode
+- Partial vision/multimodal support
+- No fine-tuned models
+- No batch API
+- Tool calling has edge cases
+
+#### 5. Performance Considerations
+- Proxy adds latency compared to direct API access
+- Rate limiting is client-side only
+- No built-in caching
+- Streaming may have additional overhead
+
+#### 6. Security Concerns
+- Token exposure risks (see [SECURITY.md](./SECURITY.md))
+- `/token` endpoint publicly accessible by default
+- No built-in authentication
+- Verbose logging may leak sensitive data
+- See full security guidelines in [SECURITY.md](./SECURITY.md)
+
+### Operational Limitations
+
+#### 7. Not Suitable For
+
+**❌ Do NOT use this proxy for**:
+- Production services or applications
+- High-frequency automated systems
+- Public-facing APIs
+- Multi-tenant environments without proper security
+- Any usage violating GitHub's Acceptable Use Policies
+- Critical or time-sensitive applications
+- Services requiring uptime guarantees
+- Batch processing or bulk operations
+- Any use case that generates high request volumes
+
+**✅ Appropriate use cases**:
+- Personal development and learning
+- Local AI-assisted coding (e.g., Claude Code)
+- Educational purposes
+- Experimentation and testing
+- Individual productivity tools
+- Temporary or one-off usage
+
+#### 8. Support and Maintenance
+- **Fork-specific**: This fork is maintained independently for experimental purposes
+- **Upstream**: Original project by [@ericc-ch](https://github.com/ericc-ch)
+- **Community support only**: No official support channels
+- **Breaking changes**: May occur without notice
+- See [FORK_NOTES.md](./FORK_NOTES.md) for fork-specific information
+
+### Compliance and Legal
+
+#### 9. Terms of Service
+By using this proxy, you must:
+- Comply with [GitHub's Acceptable Use Policies](https://docs.github.com/site-policy/acceptable-use-policies/github-acceptable-use-policies)
+- Follow [GitHub Copilot Terms](https://docs.github.com/site-policy/github-terms/github-terms-for-additional-products-and-features#github-copilot)
+- Use responsibly and ethically
+- Not violate any applicable laws or regulations
+
+#### 10. No Warranty
+This software is provided "AS IS" without warranty of any kind. See [LICENSE](./LICENSE) for full terms.
+
+**Disclaimer**: The maintainers are not responsible for:
+- Any account restrictions or bans
+- Service interruptions or data loss
+- Security incidents or token leaks
+- Any damages resulting from use of this software
+
+### Getting Help
+
+If you encounter issues:
+- Check [QUICKSTART.md](./docs/QUICKSTART.md) for common solutions
+- Review [SECURITY.md](./SECURITY.md) for security-related questions
+- See [DEVELOPMENT.md](./docs/DEVELOPMENT.md) for development guidelines
+- Open an issue on GitHub (fork or upstream as appropriate)
+
+**For GitHub account issues**: Contact GitHub Support directly - this project cannot help with account restrictions.
+
