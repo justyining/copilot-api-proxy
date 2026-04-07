@@ -7,7 +7,7 @@ import { getTokenCount } from "~/lib/tokenizer"
 import { validateAnthropicCountTokensPayload } from "~/lib/validation"
 
 import { type AnthropicMessagesPayload } from "./anthropic-types"
-import { translateToOpenAI } from "./non-stream-translation"
+import { translateModelName, translateToOpenAI } from "./non-stream-translation"
 
 /**
  * Handles token counting for Anthropic messages
@@ -22,12 +22,15 @@ export async function handleCountTokens(c: Context) {
 
   const openAIPayload = translateToOpenAI(anthropicPayload)
 
+  const resolvedModelName = translateModelName(anthropicPayload.model)
   const selectedModel = state.models?.data.find(
-    (model) => model.id === anthropicPayload.model,
+    (model) => model.id === resolvedModelName,
   )
 
   if (!selectedModel) {
-    consola.warn("Model not found, returning default token count")
+    consola.warn(
+      `Model not found: resolved="${resolvedModelName}", original="${anthropicPayload.model}", available=[${state.models?.data.map((m) => m.id).join(", ")}]`,
+    )
     return c.json({
       input_tokens: 1,
     })

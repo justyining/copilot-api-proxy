@@ -55,7 +55,9 @@ export async function handleCompletion(c: Context) {
       )
     }
   } else {
-    consola.warn(`Model not found: ${openAIPayload.model}`)
+    consola.warn(
+      `Model not found: requested="${openAIPayload.model}", original="${anthropicPayload.model}", available=[${state.models?.data.map((m) => m.id).join(", ")}]`,
+    )
   }
 
   if (state.manualApprove) {

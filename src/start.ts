@@ -138,24 +138,26 @@ function logDetailedModelConfigurations(models: Array<Model>) {
     consola.info(`  Family: ${model.capabilities.family}`)
     consola.info(`  Tokenizer: ${model.capabilities.tokenizer}`)
     consola.info(`  Type: ${model.capabilities.type}`)
-    consola.info("  Limits:")
-    if (model.capabilities.limits.max_context_window_tokens) {
-      consola.info(
-        `    Max context window: ${model.capabilities.limits.max_context_window_tokens} tokens`,
-      )
-    }
-    if (model.capabilities.limits.max_output_tokens) {
-      consola.info(
-        `    Max output: ${model.capabilities.limits.max_output_tokens} tokens`,
-      )
-    }
-    if (model.capabilities.limits.max_prompt_tokens) {
-      consola.info(
-        `    Max prompt: ${model.capabilities.limits.max_prompt_tokens} tokens`,
-      )
-    }
-    if (model.capabilities.limits.max_inputs) {
-      consola.info(`    Max inputs: ${model.capabilities.limits.max_inputs}`)
+    if (model.capabilities.limits) {
+      consola.info("  Limits:")
+      if (model.capabilities.limits.max_context_window_tokens) {
+        consola.info(
+          `    Max context window: ${model.capabilities.limits.max_context_window_tokens} tokens`,
+        )
+      }
+      if (model.capabilities.limits.max_output_tokens) {
+        consola.info(
+          `    Max output: ${model.capabilities.limits.max_output_tokens} tokens`,
+        )
+      }
+      if (model.capabilities.limits.max_prompt_tokens) {
+        consola.info(
+          `    Max prompt: ${model.capabilities.limits.max_prompt_tokens} tokens`,
+        )
+      }
+      if (model.capabilities.limits.max_inputs) {
+        consola.info(`    Max inputs: ${model.capabilities.limits.max_inputs}`)
+      }
     }
     consola.info("  Supports:")
     consola.info(

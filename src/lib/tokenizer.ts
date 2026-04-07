@@ -7,6 +7,8 @@ import type {
 } from "~/services/copilot/create-chat-completions"
 import type { Model } from "~/services/copilot/get-models"
 
+import consola from "consola"
+
 // Encoder type mapping
 const ENCODING_MAP = {
   o200k_base: () => import("gpt-tokenizer/encoding/o200k_base"),
@@ -23,6 +25,21 @@ interface Encoder {
   encode: (text: string) => Array<number>
 }
 
+// Chunk size for safe encoding (characters)
+const ENCODE_CHUNK_SIZE = 10000
+
+/**
+ * Safely encode a string by splitting into chunks to avoid
+ * tokenizer parse errors on very long strings (e.g. base64 images).
+ */
+const encodeSafely = (encoder: Encoder, text: string): number => {
+  let total = 0
+  for (let i = 0; i < text.length; i += ENCODE_CHUNK_SIZE) {
+    total += encoder.encode(text.slice(i, i + ENCODE_CHUNK_SIZE)).length
+  }
+  return total
+}
+
 // Cache loaded encoders to avoid repeated imports
 const encodingCache = new Map<string, Encoder>()
 
@@ -37,7 +54,7 @@ const calculateToolCallsTokens = (
   let tokens = 0
   for (const toolCall of toolCalls) {
     tokens += constants.funcInit
-    tokens += encoder.encode(JSON.stringify(toolCall)).length
+    tokens += encodeSafely(encoder, JSON.stringify(toolCall))
   }
   tokens += constants.funcEnd
   return tokens
@@ -53,9 +70,9 @@ const calculateContentPartsTokens = (
   let tokens = 0
   for (const part of contentParts) {
     if (part.type === "image_url") {
-      tokens += encoder.encode(part.image_url.url).length + 85
+      tokens += encodeSafely(encoder, part.image_url.url) + 85
     } else if (part.text) {
-      tokens += encoder.encode(part.text).length
+      tokens += encodeSafely(encoder, part.text)
     }
   }
   return tokens
@@ -74,7 +91,7 @@ const calculateMessageTokens = (
   let tokens = tokensPerMessage
   for (const [key, value] of Object.entries(message)) {
     if (typeof value === "string") {
-      tokens += encoder.encode(value).length
+      tokens += encodeSafely(encoder, value)
     }
     if (key === "name") {
       tokens += tokensPerName
@@ -205,7 +222,7 @@ const calculateParameterTokens = (
     tokens += constants.enumInit
     for (const item of param.enum) {
       tokens += constants.enumItem
-      tokens += encoder.encode(String(item)).length
+      tokens += encodeSafely(encoder, String(item))
     }
   }
 
@@ -216,7 +233,7 @@ const calculateParameterTokens = (
 
   // Encode the main parameter line
   const line = `${paramName}:${paramType}:${paramDesc}`
-  tokens += encoder.encode(line).length
+  tokens += encodeSafely(encoder, line)
 
   // Handle additional properties (excluding standard ones)
   const excludedKeys = new Set(["type", "description", "enum"])
@@ -227,7 +244,7 @@ const calculateParameterTokens = (
         typeof propertyValue === "string" ? propertyValue : (
           JSON.stringify(propertyValue)
         )
-      tokens += encoder.encode(`${propertyName}:${propertyText}`).length
+      tokens += encodeSafely(encoder, `${propertyName}:${propertyText}`)
     }
   }
 
@@ -264,7 +281,7 @@ const calculateParametersTokens = (
     } else {
       const paramText =
         typeof value === "string" ? value : JSON.stringify(value)
-      tokens += encoder.encode(`${key}:${paramText}`).length
+      tokens += encodeSafely(encoder, `${key}:${paramText}`)
     }
   }
 
@@ -287,7 +304,7 @@ const calculateToolTokens = (
     fDesc = fDesc.slice(0, -1)
   }
   const line = fName + ":" + fDesc
-  tokens += encoder.encode(line).length
+  tokens += encodeSafely(encoder, line)
   if (
     typeof func.parameters === "object" // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     && func.parameters !== null
@@ -320,29 +337,40 @@ export const getTokenCount = async (
   payload: ChatCompletionsPayload,
   model: Model,
 ): Promise<{ input: number; output: number }> => {
-  // Get tokenizer string
-  const tokenizer = getTokenizerFromModel(model)
+  try {
+    // Get tokenizer string
+    const tokenizer = getTokenizerFromModel(model)
 
-  // Get corresponding encoder module
-  const encoder = await getEncodeChatFunction(tokenizer)
+    // Get corresponding encoder module
+    const encoder = await getEncodeChatFunction(tokenizer)
 
-  const simplifiedMessages = payload.messages
-  const inputMessages = simplifiedMessages.filter(
-    (msg) => msg.role !== "assistant",
-  )
-  const outputMessages = simplifiedMessages.filter(
-    (msg) => msg.role === "assistant",
-  )
+    const simplifiedMessages = payload.messages
+    const inputMessages = simplifiedMessages.filter(
+      (msg) => msg.role !== "assistant",
+    )
+    const outputMessages = simplifiedMessages.filter(
+      (msg) => msg.role === "assistant",
+    )
 
-  const constants = getModelConstants(model)
-  let inputTokens = calculateTokens(inputMessages, encoder, constants)
-  if (payload.tools && payload.tools.length > 0) {
-    inputTokens += numTokensForTools(payload.tools, encoder, constants)
-  }
-  const outputTokens = calculateTokens(outputMessages, encoder, constants)
+    const constants = getModelConstants(model)
+    let inputTokens = calculateTokens(inputMessages, encoder, constants)
+    if (payload.tools && payload.tools.length > 0) {
+      inputTokens += numTokensForTools(payload.tools, encoder, constants)
+    }
+    const outputTokens = calculateTokens(outputMessages, encoder, constants)
 
-  return {
-    input: inputTokens,
-    output: outputTokens,
+    return {
+      input: inputTokens,
+      output: outputTokens,
+    }
+  } catch (error) {
+    consola.warn("Token counting failed, using estimate:", error)
+    // Rough estimate: ~4 chars per token
+    const textLength = JSON.stringify(payload.messages).length
+    const estimatedTokens = Math.ceil(textLength / 4)
+    return {
+      input: estimatedTokens,
+      output: 0,
+    }
   }
 }

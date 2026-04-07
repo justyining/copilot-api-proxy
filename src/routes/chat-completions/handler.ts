@@ -50,7 +50,9 @@ export async function handleCompletion(c: Context) {
       )
     }
   } else {
-    consola.warn(`Model not found: ${payload.model}`)
+    consola.warn(
+      `Model not found: requested="${payload.model}", available=[${state.models?.data.map((m) => m.id).join(", ")}]`,
+    )
   }
 
   // Calculate and display token count
@@ -61,7 +63,9 @@ export async function handleCompletion(c: Context) {
         `Current token count: ${tokenCount.input} input + ${tokenCount.output} output = ${tokenCount.input + tokenCount.output} total`,
       )
     } else {
-      consola.warn("No model selected, skipping token count calculation")
+      consola.warn(
+        `No model selected, skipping token count calculation (requested="${payload.model}")`,
+      )
     }
   } catch (error) {
     consola.warn("Failed to calculate token count:", error)
