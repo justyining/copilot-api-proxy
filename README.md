@@ -394,14 +394,13 @@ Here is an example `.claude/settings.json` file:
 ```json
 {
   "env": {
+    "ANTHROPIC_AUTH_TOKEN": "yougotthekey",
     "ANTHROPIC_BASE_URL": "http://localhost:4141",
-    "ANTHROPIC_AUTH_TOKEN": "dummy",
-    "ANTHROPIC_MODEL": "gpt-4.1",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "gpt-4.1",
-    "ANTHROPIC_SMALL_FAST_MODEL": "gpt-4.1",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "gpt-4.1",
-    "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4.6",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4.6",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4.5",
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": 1,
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1
   },
   "permissions": {
     "deny": [
