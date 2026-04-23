@@ -1,5 +1,7 @@
 import type { ModelsResponse } from "~/services/copilot/get-models"
 
+export type ClientMode = "claude-code" | "codex"
+
 export interface State {
   githubToken?: string
   copilotToken?: string
@@ -7,6 +9,17 @@ export interface State {
   accountType: string
   models?: ModelsResponse
   vsCodeVersion?: string
+
+  // Persistent identity (loaded from files)
+  deviceId?: string
+  machineId?: string
+
+  // Per-startup identity
+  sessionId?: string
+
+  // Client mode determines header profile
+  clientMode: ClientMode
+  copilotVersion: string
 
   manualApprove: boolean
   rateLimitWait: boolean
@@ -19,6 +32,8 @@ export interface State {
 
 export const state: State = {
   accountType: "individual",
+  clientMode: "claude-code",
+  copilotVersion: "0.45.0",
   manualApprove: false,
   rateLimitWait: false,
   showToken: false,

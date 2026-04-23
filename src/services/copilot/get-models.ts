@@ -4,7 +4,7 @@ import { state } from "~/lib/state"
 
 export const getModels = async () => {
   const response = await fetch(`${copilotBaseUrl(state)}/models`, {
-    headers: copilotHeaders(state),
+    headers: copilotHeaders({ state }),
   })
 
   if (!response.ok) throw new HTTPError("Failed to get models", response)
@@ -32,7 +32,7 @@ interface ModelSupports {
 
 interface ModelCapabilities {
   family: string
-  limits: ModelLimits
+  limits?: ModelLimits
   object: string
   supports: ModelSupports
   tokenizer: string

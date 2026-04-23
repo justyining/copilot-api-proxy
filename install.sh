@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="justyining/copilot-api"
+REPO="justyining/copilot-api-proxy"
 SCRIPT="claude-copilot"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 VERSION="${1:-latest}"

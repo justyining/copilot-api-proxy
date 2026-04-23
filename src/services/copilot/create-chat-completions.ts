@@ -29,11 +29,13 @@ export const createChatCompletions = async (
     ["assistant", "tool"].includes(msg.role),
   )
 
-  // Build headers and add X-Initiator
-  const headers: Record<string, string> = {
-    ...copilotHeaders(state, enableVision),
-    "X-Initiator": isAgentCall ? "agent" : "user",
-  }
+  const headers = copilotHeaders({
+    state,
+    vision: enableVision,
+    intent: "conversation-panel",
+    interactionType: "conversation-panel",
+    initiator: isAgentCall ? "agent" : "user",
+  })
 
   let response: Response
 

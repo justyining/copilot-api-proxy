@@ -8,6 +8,11 @@ import invariant from "tiny-invariant"
 
 import type { Model } from "./services/copilot/get-models"
 
+import {
+  generateSessionId,
+  loadOrCreateDeviceId,
+  loadOrCreateMachineId,
+} from "./lib/identity"
 import { ensurePaths } from "./lib/paths"
 import { initProxyFromEnv } from "./lib/proxy"
 import { generateEnvScript } from "./lib/shell"
@@ -27,6 +32,7 @@ interface RunServerOptions {
   claudeCode: boolean
   showToken: boolean
   proxyEnv: boolean
+  clientMode: "claude-code" | "codex"
 }
 
 export async function runServer(options: RunServerOptions): Promise<void> {
@@ -51,6 +57,16 @@ export async function runServer(options: RunServerOptions): Promise<void> {
 
   await ensurePaths()
   await cacheVSCodeVersion()
+
+  // Initialize persistent and per-session identity
+  state.deviceId = await loadOrCreateDeviceId()
+  state.machineId = await loadOrCreateMachineId()
+  state.sessionId = generateSessionId()
+  state.clientMode = options.clientMode
+
+  consola.info(`Client mode: ${state.clientMode}`)
+  consola.info(`Device ID: ${state.deviceId.slice(0, 8)}...`)
+  consola.info(`Session ID: ${state.sessionId.slice(0, 8)}...`)
 
   if (options.githubToken) {
     state.githubToken = options.githubToken
@@ -239,6 +255,12 @@ export const start = defineCommand({
       default: false,
       description: "Initialize proxy from environment variables",
     },
+    "client-mode": {
+      alias: "m",
+      type: "string",
+      default: "claude-code",
+      description: "Client mode: claude-code or codex",
+    },
   },
   run({ args }) {
     const rateLimitRaw = args["rate-limit"]
@@ -257,6 +279,7 @@ export const start = defineCommand({
       claudeCode: args["claude-code"],
       showToken: args["show-token"],
       proxyEnv: args["proxy-env"],
+      clientMode: args["client-mode"] as "claude-code" | "codex",
     })
   },
 })

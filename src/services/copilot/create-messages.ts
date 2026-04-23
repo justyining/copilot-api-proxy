@@ -22,12 +22,12 @@ export async function createMessages(
     ["assistant", "tool"].includes(msg.role),
   )
 
-  const headers: Record<string, string> = {
-    ...copilotHeaders(state),
-    "openai-intent": "messages-proxy",
-    "x-github-api-version": "2025-10-01",
-    "X-Initiator": isAgentCall ? "agent" : "user",
-  }
+  const headers = copilotHeaders({
+    state,
+    intent: "messages-proxy",
+    interactionType: "messages-proxy",
+    initiator: isAgentCall ? "agent" : "user",
+  })
 
   let response: Response
 
@@ -57,9 +57,7 @@ export async function createMessages(
     )
 
     if (response.status === 401) {
-      throw createAuthenticationError(
-        "Invalid or expired GitHub Copilot token",
-      )
+      throw createAuthenticationError("Invalid or expired GitHub Copilot token")
     }
 
     if (response.status === 503) {

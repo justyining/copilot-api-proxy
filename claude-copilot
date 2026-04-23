@@ -3,7 +3,7 @@
 # Usage: claude-copilot [any claude args...]
 #
 # Install:
-#   curl -fsSL https://raw.githubusercontent.com/justyining/copilot-api/master/claude-copilot -o ~/.local/bin/claude-copilot && chmod +x ~/.local/bin/claude-copilot
+#   curl -fsSL https://raw.githubusercontent.com/justyining/copilot-api-proxy/master/claude-copilot -o ~/.local/bin/claude-copilot && chmod +x ~/.local/bin/claude-copilot
 
 export ANTHROPIC_AUTH_TOKEN="${ANTHROPIC_AUTH_TOKEN:-yougotthekey}"
 export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-http://localhost:4141}"

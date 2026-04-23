@@ -5,7 +5,7 @@
 
 将 GitHub Copilot 转为 OpenAI/Anthropic 兼容 API，可直接驱动 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) 等工具。
 
-本项目 fork 自 [ericc-ch/copilot-api](https://github.com/ericc-ch/copilot-api)，由 [@justyining](https://github.com/justyining) 维护。差异详见 [FORK_NOTES.md](./FORK_NOTES.md)。
+> **Note:** 本项目基于 [ericc-ch/copilot-api](https://github.com/ericc-ch/copilot-api) 开发，由 [@justyining](https://github.com/justyining) 独立维护。
 
 **前置条件**：GitHub 账号已订阅 Copilot。
 
@@ -14,7 +14,7 @@
 ### 从源码运行
 
 ```bash
-git clone https://github.com/justyining/copilot-api.git
+git clone https://github.com/justyining/copilot-api-proxy.git
 cd copilot-api
 bun install
 bun run dev
@@ -53,7 +53,7 @@ curl http://localhost:4141/v1/models
 ### 方式一：一键 wrapper 脚本（推荐）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/justyining/copilot-api/master/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/justyining/copilot-api-proxy/master/install.sh | bash
 ```
 
 安装后直接运行：
@@ -148,4 +148,4 @@ copilot-api start [选项]
 
 ## 许可证
 
-与上游一致，见 [LICENSE](./LICENSE)。
+MIT，见 [LICENSE](./LICENSE)。
