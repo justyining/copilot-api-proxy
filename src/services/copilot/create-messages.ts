@@ -11,14 +11,83 @@ import { state } from "~/lib/state"
 
 import { parseQuotaHeaders } from "./parse-quota-headers"
 
-export async function createMessages(
+/**
+ * Normalize thinking.type per model requirements:
+ * - Opus: only "adaptive" (no budget_tokens)
+ * - Sonnet/Haiku: only "enabled" (budget_tokens required)
+ * - "disabled": remove thinking entirely
+ */
+function normalizeThinking(
   payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const thinking = payload.thinking as
+    | { type?: string; budget_tokens?: number }
+    | undefined
+
+  if (thinking?.type === "adaptive" || thinking?.type === "enabled") {
+    const modelId = payload.model as string | undefined
+    const model = state.models?.data.find((m) => m.id === modelId)
+    const maxBudget = model?.capabilities.supports.max_thinking_budget ?? 10000
+    const isOpus = (modelId ?? "").includes("opus")
+
+    if (isOpus) {
+      return { ...payload, thinking: { type: "adaptive" } }
+    }
+    return {
+      ...payload,
+      thinking: {
+        type: "enabled",
+        budget_tokens: thinking.budget_tokens ?? maxBudget,
+      },
+    }
+  }
+
+  if (thinking?.type === "disabled") {
+    const patched = { ...payload }
+    delete patched.thinking
+    delete patched.context_management
+    return patched
+  }
+
+  return payload
+}
+
+/**
+ * Inject metadata.user_id and context_management if not present.
+ */
+function injectDefaults(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const patched = { ...payload }
+
+  if (!patched.metadata) {
+    patched.metadata = {
+      user_id: JSON.stringify({
+        device_id: state.deviceId ?? "",
+        account_uuid: "",
+        session_id: state.sessionId ?? "",
+      }),
+    }
+  }
+
+  if (!patched.context_management && patched.thinking) {
+    patched.context_management = {
+      edits: [{ type: "clear_thinking_20251015", keep: "all" }],
+    }
+  }
+
+  return patched
+}
+
+export async function createMessages(
+  rawPayload: Record<string, unknown>,
 ): Promise<Response> {
   if (!state.copilotToken) {
     throw createAuthenticationError("Copilot token not found")
   }
 
-  // Determine initiator from messages
+  const payload = injectDefaults(normalizeThinking(rawPayload))
+
   const messages = payload.messages as Array<{ role: string }> | undefined
   const isAgentCall = messages?.some((msg) =>
     ["assistant", "tool"].includes(msg.role),
@@ -37,7 +106,6 @@ export async function createMessages(
     payload,
   )
 
-  // Track quota info from response headers
   parseQuotaHeaders(response.headers)
 
   if (!response.ok) {
@@ -138,25 +206,16 @@ async function readErrorBody(
   }
 }
 
-/**
- * Attempt to patch the payload based on a 400 error message.
- * Returns a patched copy if the error is recoverable, or null otherwise.
- */
 function tryPatchFromError(
   payload: Record<string, unknown>,
   errorBody: CopilotErrorResponse,
 ): Record<string, unknown> | null {
   const message = errorBody.error?.message ?? ""
 
-  // "thinking.type.enabled" not supported → force adaptive
-  if (
-    message.includes("thinking.type")
-    && message.includes("is not supported")
-  ) {
+  if (message.includes("thinking") && message.includes("does not match")) {
     const patched = { ...payload }
-    if (patched.thinking) {
-      patched.thinking = { type: "adaptive" }
-    }
+    delete patched.thinking
+    delete patched.context_management
     return patched
   }
 

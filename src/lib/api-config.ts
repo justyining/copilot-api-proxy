@@ -89,7 +89,7 @@ export function copilotHeaders(
 
   if (state.clientMode === "claude-code") {
     headers["anthropic-beta"] =
-      "interleaved-thinking-2025-05-14,context-management-2025-06-27"
+      "claude-code-20250219,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24"
   }
 
   if (vision) {

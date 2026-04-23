@@ -17,11 +17,6 @@ function patchPayload(
 ): Record<string, unknown> {
   const patched: Record<string, unknown> = { ...payload }
 
-  // Force thinking.type to "adaptive" (Copilot doesn't support "enabled")
-  if (payload.thinking) {
-    patched.thinking = { type: "adaptive" }
-  }
-
   // Map model name to Copilot format
   patched.model = translateModelName(payload.model)
 
@@ -54,14 +49,14 @@ export async function handleCompletion(c: Context) {
       `  Model info: ${selectedModel.vendor} ${selectedModel.name} (${selectedModel.version})`,
     )
     consola.debug(`  Family: ${selectedModel.capabilities.family}`)
-    if (selectedModel.capabilities.limits.max_output_tokens) {
+    if (selectedModel.capabilities.limits?.max_output_tokens) {
       consola.debug(
         `  Max output tokens: ${selectedModel.capabilities.limits.max_output_tokens} tokens`,
       )
     }
   } else {
     consola.warn(
-      `Model not found: requested="${patchedPayload.model}", original="${payload.model}", available=[${state.models?.data.map((m) => m.id).join(", ")}]`,
+      `Model not found: requested="${patchedPayload.model as string}", original="${payload.model}", available=[${state.models?.data.map((m) => m.id).join(", ")}]`,
     )
   }
 

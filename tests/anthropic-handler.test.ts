@@ -48,6 +48,7 @@ beforeEach(() => {
         capabilities: {
           family: "claude-4",
           limits: { max_output_tokens: 16384 },
+          supports: { max_thinking_budget: 32000 },
         },
       },
     ],
@@ -85,7 +86,7 @@ describe("POST /v1/messages – model name mapping", () => {
 
     expect(res.status).toBe(200)
     const body = JSON.parse(capturedBody!)
-    expect(body.model).toBe("claude-opus-4.6")
+    expect(body.model).toBe("claude-opus-4.7")
   })
 
   test("maps short alias 'sonnet' to copilot model", async () => {
@@ -198,7 +199,7 @@ describe("POST /v1/messages – model name mapping", () => {
 // ---------------------------------------------------------------------------
 
 describe("POST /v1/messages – thinking.type patching", () => {
-  test("forces thinking.type to 'adaptive'", async () => {
+  test("converts thinking.type 'adaptive' to 'enabled' with model max_thinking_budget", async () => {
     let capturedBody: string | null = null
     // @ts-expect-error mock
     globalThis.fetch = mock(async (_url: string, opts: any) => {
@@ -213,7 +214,34 @@ describe("POST /v1/messages – thinking.type patching", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
+        model: "claude-sonnet-4",
+        messages: [{ role: "user", content: "Hi" }],
+        max_tokens: 1024,
+        thinking: { type: "adaptive" },
+      }),
+    })
+
+    expect(res.status).toBe(200)
+    const body = JSON.parse(capturedBody!)
+    expect(body.thinking).toEqual({ type: "enabled", budget_tokens: 32000 })
+  })
+
+  test("keeps thinking.type 'enabled' unchanged", async () => {
+    let capturedBody: string | null = null
+    // @ts-expect-error mock
+    globalThis.fetch = mock(async (_url: string, opts: any) => {
+      capturedBody = opts.body
+      return new Response(JSON.stringify(COPILOT_RESPONSE_OK), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    })
+
+    const res = await server.request("/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4",
         messages: [{ role: "user", content: "Hi" }],
         max_tokens: 1024,
         thinking: { type: "enabled", budget_tokens: 10000 },
@@ -222,7 +250,7 @@ describe("POST /v1/messages – thinking.type patching", () => {
 
     expect(res.status).toBe(200)
     const body = JSON.parse(capturedBody!)
-    expect(body.thinking).toEqual({ type: "adaptive" })
+    expect(body.thinking).toEqual({ type: "enabled", budget_tokens: 10000 })
   })
 })
 

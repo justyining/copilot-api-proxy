@@ -49,13 +49,16 @@ export function translateToOpenAI(
 export function translateModelName(model: string): string {
   // Claude Code sends short aliases like "opus", "sonnet", "haiku"
   switch (model) {
-    case "opus": {
-      return "claude-opus-4.6"
+    case "opus":
+    case "claude-opus": {
+      return "claude-opus-4.7"
     }
-    case "sonnet": {
+    case "sonnet":
+    case "claude-sonnet": {
       return "claude-sonnet-4.6"
     }
-    case "haiku": {
+    case "haiku":
+    case "claude-haiku": {
       return "claude-haiku-4.5"
     }
     // No default

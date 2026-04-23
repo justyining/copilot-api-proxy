@@ -17,10 +17,23 @@
 git clone https://github.com/justyining/copilot-api-proxy.git
 cd copilot-api
 bun install
-bun run dev
 ```
 
-首次运行会提示打开 https://github.com/login/device 并输入设备码完成授权。
+首次使用需先授权：
+
+```bash
+bun run start auth
+```
+
+按提示打开 https://github.com/login/device 并输入设备码完成授权。
+
+然后启动服务：
+
+```bash
+bun run start start
+# 或开发模式（自动重启）
+bun run dev start
+```
 
 ### Docker 部署
 
@@ -89,21 +102,24 @@ claude-copilot --chat   # 透传所有 claude 原始参数
 ### start
 
 ```bash
+bun run start start [选项]
+# 或已全局安装时
 copilot-api start [选项]
 ```
 
-| 选项           | 说明                                           | 默认值     | 别名 |
-| -------------- | ---------------------------------------------- | ---------- | ---- |
-| --port         | 监听端口                                       | 4141       | -p   |
-| --verbose      | 详细日志                                       | false      | -v   |
-| --account-type | 账号类型（individual/business/enterprise）      | individual | -a   |
-| --manual       | 手动审批每个请求                               | false      |      |
-| --rate-limit   | 请求间隔（秒）                                 | 无         | -r   |
-| --wait         | 触发限流时等待而非报错                         | false      | -w   |
-| --github-token | 直接提供 GitHub token                          | 无         | -g   |
-| --claude-code  | 生成 Claude Code 启动命令                      | false      | -c   |
-| --show-token   | 显示 GitHub 和 Copilot token                   | false      |      |
-| --proxy-env    | 从环境变量初始化代理（HTTP_PROXY 等）          | false      |      |
+| 选项           | 说明                                           | 默认值        | 别名 |
+| -------------- | ---------------------------------------------- | ------------- | ---- |
+| --port         | 监听端口                                       | 4141          | -p   |
+| --verbose      | 详细日志                                       | false         | -v   |
+| --account-type | 账号类型（individual/business/enterprise）      | individual    | -a   |
+| --manual       | 手动审批每个请求                               | false         |      |
+| --rate-limit   | 请求间隔（秒）                                 | 无            | -r   |
+| --wait         | 触发限流时等待而非报错                         | false         | -w   |
+| --github-token | 直接提供 GitHub token                          | 无            | -g   |
+| --claude-code  | 生成 Claude Code 启动命令                      | false         | -c   |
+| --show-token   | 显示 GitHub 和 Copilot token                   | false         |      |
+| --proxy-env    | 从环境变量初始化代理（HTTP_PROXY 等）          | false         |      |
+| --client-mode  | 客户端模式（claude-code/codex）                | claude-code   | -m   |
 
 ### 其他命令
 
