@@ -19,27 +19,52 @@ export const setupCopilotToken = async () => {
   const { token, refresh_in } = await getCopilotToken()
   state.copilotToken = token
 
-  // Display the Copilot token to the screen
   consola.debug("GitHub Copilot Token fetched successfully!")
   if (state.showToken) {
     consola.info("Copilot token:", token)
   }
 
   const refreshInterval = (refresh_in - 60) * 1000
-  setInterval(async () => {
-    consola.debug("Refreshing Copilot token")
-    try {
-      const { token } = await getCopilotToken()
-      state.copilotToken = token
-      consola.debug("Copilot token refreshed")
-      if (state.showToken) {
-        consola.info("Refreshed Copilot token:", token)
+  let consecutiveFailures = 0
+
+  const scheduleRefresh = () => {
+    const delay =
+      consecutiveFailures === 0 ? refreshInterval : (
+        Math.min(
+          refreshInterval * Math.pow(2, consecutiveFailures),
+          refreshInterval * 4,
+        )
+      )
+
+    state.tokenRefreshTimerId = setTimeout(async () => {
+      consola.debug("Refreshing Copilot token")
+      try {
+        const { token: newToken } = await getCopilotToken()
+        state.copilotToken = newToken
+        consecutiveFailures = 0
+        consola.debug("Copilot token refreshed")
+        if (state.showToken) {
+          consola.info("Refreshed Copilot token:", newToken)
+        }
+      } catch (error) {
+        consecutiveFailures++
+        consola.error(
+          `Failed to refresh Copilot token (attempt ${consecutiveFailures}):`,
+          error,
+        )
       }
-    } catch (error) {
-      consola.error("Failed to refresh Copilot token:", error)
-      // Don't throw - keep service running with old token, will retry next interval
-    }
-  }, refreshInterval)
+      scheduleRefresh()
+    }, delay)
+  }
+
+  scheduleRefresh()
+}
+
+export function stopTokenRefresh() {
+  if (state.tokenRefreshTimerId !== undefined) {
+    clearTimeout(state.tokenRefreshTimerId)
+    state.tokenRefreshTimerId = undefined
+  }
 }
 
 interface SetupGitHubTokenOptions {

@@ -57,9 +57,7 @@ export async function createMessages(
     )
 
     if (response.status === 401) {
-      throw createAuthenticationError(
-        "Invalid or expired GitHub Copilot token",
-      )
+      throw createAuthenticationError("Invalid or expired GitHub Copilot token")
     }
 
     if (response.status === 503) {

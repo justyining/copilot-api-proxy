@@ -17,48 +17,33 @@ import type {
 
 import { createInvalidRequestError, createValidationError } from "~/lib/error"
 
+interface ValidatedAnthropicBase {
+  model: string
+  messages: Array<AnthropicMessage>
+  temperature?: number | null
+  top_p?: number | null
+  top_k?: number | null
+  stream?: boolean | null
+  system?: string | AnthropicMessagesPayload["system"] | null
+  stop_sequences?: Array<string> | null
+  tools?: Array<AnthropicTool> | null
+  tool_choice?: AnthropicMessagesPayload["tool_choice"] | null
+  thinking?: AnthropicMessagesPayload["thinking"] | null
+  service_tier?: string | null
+  metadata?: AnthropicMessagesPayload["metadata"] | null
+}
+
 /**
- * Validate Anthropic Messages API payload
+ * Shared validation for Anthropic common fields (everything except max_tokens).
  */
-export function validateAnthropicPayload(
-  payload: unknown,
-): asserts payload is AnthropicMessagesPayload {
-  if (!payload || typeof payload !== "object") {
-    throw createInvalidRequestError("Request body must be a valid JSON object")
-  }
-
-  const p = payload as Partial<AnthropicMessagesPayload>
-
-  // Required fields validation
-  if (!p.model || typeof p.model !== "string") {
-    throw createInvalidRequestError(
-      "model: required field missing or invalid type",
-    )
-  }
-
-  if (!p.messages || !Array.isArray(p.messages)) {
-    throw createInvalidRequestError(
-      "messages: required field missing or must be an array",
-    )
-  }
-
-  if (p.messages.length === 0) {
-    throw createInvalidRequestError("messages: array must not be empty")
-  }
-
-  if (typeof p.max_tokens !== "number") {
-    throw createInvalidRequestError(
-      "max_tokens: required field missing or must be a number",
-    )
-  }
-
-  // Validate max_tokens range
-  if (p.max_tokens <= 0) {
-    throw createValidationError("max_tokens: must be a positive integer")
-  }
-
-  if (!Number.isInteger(p.max_tokens)) {
-    throw createValidationError("max_tokens: must be an integer")
+function validateAnthropicCommonFields(p: ValidatedAnthropicBase): void {
+  // Validate stream if provided
+  if (
+    p.stream !== undefined
+    && p.stream !== null
+    && typeof p.stream !== "boolean"
+  ) {
+    throw createValidationError("stream: must be a boolean")
   }
 
   // Validate temperature if provided
@@ -89,15 +74,6 @@ export function validateAnthropicPayload(
     if (p.top_k <= 0 || !Number.isInteger(p.top_k)) {
       throw createValidationError("top_k: must be a positive integer")
     }
-  }
-
-  // Validate stream if provided
-  if (
-    p.stream !== undefined
-    && p.stream !== null
-    && typeof p.stream !== "boolean"
-  ) {
-    throw createValidationError("stream: must be a boolean")
   }
 
   // Validate messages array
@@ -220,21 +196,17 @@ export function validateAnthropicPayload(
 }
 
 /**
- * Validate Anthropic Messages API payload for count_tokens endpoint
- * Same as validateAnthropicPayload but doesn't require max_tokens
+ * Validate Anthropic Messages API payload
  */
-export function validateAnthropicCountTokensPayload(
+export function validateAnthropicPayload(
   payload: unknown,
-): asserts payload is Omit<AnthropicMessagesPayload, "max_tokens"> & {
-  max_tokens?: number
-} {
+): asserts payload is AnthropicMessagesPayload {
   if (!payload || typeof payload !== "object") {
     throw createInvalidRequestError("Request body must be a valid JSON object")
   }
 
   const p = payload as Partial<AnthropicMessagesPayload>
 
-  // Required fields validation (max_tokens is optional for count_tokens)
   if (!p.model || typeof p.model !== "string") {
     throw createInvalidRequestError(
       "model: required field missing or invalid type",
@@ -251,7 +223,54 @@ export function validateAnthropicCountTokensPayload(
     throw createInvalidRequestError("messages: array must not be empty")
   }
 
-  // Validate max_tokens if provided, but don't require it
+  // max_tokens is required
+  if (typeof p.max_tokens !== "number") {
+    throw createInvalidRequestError(
+      "max_tokens: required field missing or must be a number",
+    )
+  }
+  if (p.max_tokens <= 0) {
+    throw createValidationError("max_tokens: must be a positive integer")
+  }
+  if (!Number.isInteger(p.max_tokens)) {
+    throw createValidationError("max_tokens: must be an integer")
+  }
+
+  validateAnthropicCommonFields(p as ValidatedAnthropicBase)
+}
+
+/**
+ * Validate Anthropic Messages API payload for count_tokens endpoint
+ * Same as validateAnthropicPayload but doesn't require max_tokens
+ */
+export function validateAnthropicCountTokensPayload(
+  payload: unknown,
+): asserts payload is Omit<AnthropicMessagesPayload, "max_tokens"> & {
+  max_tokens?: number
+} {
+  if (!payload || typeof payload !== "object") {
+    throw createInvalidRequestError("Request body must be a valid JSON object")
+  }
+
+  const p = payload as Partial<AnthropicMessagesPayload>
+
+  if (!p.model || typeof p.model !== "string") {
+    throw createInvalidRequestError(
+      "model: required field missing or invalid type",
+    )
+  }
+
+  if (!p.messages || !Array.isArray(p.messages)) {
+    throw createInvalidRequestError(
+      "messages: required field missing or must be an array",
+    )
+  }
+
+  if (p.messages.length === 0) {
+    throw createInvalidRequestError("messages: array must not be empty")
+  }
+
+  // max_tokens is optional for count_tokens
   if (p.max_tokens !== undefined && p.max_tokens !== null) {
     if (typeof p.max_tokens !== "number") {
       throw createValidationError("max_tokens: must be a number")
@@ -264,154 +283,7 @@ export function validateAnthropicCountTokensPayload(
     }
   }
 
-  // All other validations are the same as validateAnthropicPayload
-  // Validate temperature if provided
-  if (p.temperature !== undefined && p.temperature !== null) {
-    if (typeof p.temperature !== "number") {
-      throw createValidationError("temperature: must be a number")
-    }
-    if (p.temperature < 0 || p.temperature > 1) {
-      throw createValidationError("temperature: must be between 0 and 1")
-    }
-  }
-
-  // Validate top_p if provided
-  if (p.top_p !== undefined && p.top_p !== null) {
-    if (typeof p.top_p !== "number") {
-      throw createValidationError("top_p: must be a number")
-    }
-    if (p.top_p < 0 || p.top_p > 1) {
-      throw createValidationError("top_p: must be between 0 and 1")
-    }
-  }
-
-  // Validate top_k if provided
-  if (p.top_k !== undefined && p.top_k !== null) {
-    if (typeof p.top_k !== "number") {
-      throw createValidationError("top_k: must be a number")
-    }
-    if (p.top_k <= 0 || !Number.isInteger(p.top_k)) {
-      throw createValidationError("top_k: must be a positive integer")
-    }
-  }
-
-  // Validate messages array
-  for (let i = 0; i < p.messages.length; i++) {
-    validateAnthropicMessage(p.messages[i], i)
-  }
-
-  // Validate system if provided
-  if (p.system !== undefined && p.system !== null) {
-    if (typeof p.system !== "string" && !Array.isArray(p.system)) {
-      throw createValidationError(
-        "system: must be a string or array of text blocks",
-      )
-    }
-    if (Array.isArray(p.system)) {
-      for (const block of p.system) {
-        if (!block || typeof block !== "object" || block.type !== "text") {
-          throw createValidationError(
-            "system: array elements must be text blocks with type 'text'",
-          )
-        }
-        if (typeof block.text !== "string") {
-          throw createValidationError(
-            "system: text blocks must have a 'text' string field",
-          )
-        }
-      }
-    }
-  }
-
-  // Validate stop_sequences if provided
-  if (p.stop_sequences !== undefined && p.stop_sequences !== null) {
-    if (!Array.isArray(p.stop_sequences)) {
-      throw createValidationError("stop_sequences: must be an array")
-    }
-    for (const seq of p.stop_sequences) {
-      if (typeof seq !== "string") {
-        throw createValidationError(
-          "stop_sequences: all elements must be strings",
-        )
-      }
-    }
-  }
-
-  // Validate tools if provided
-  if (p.tools !== undefined && p.tools !== null) {
-    if (!Array.isArray(p.tools)) {
-      throw createValidationError("tools: must be an array")
-    }
-    for (let i = 0; i < p.tools.length; i++) {
-      validateAnthropicTool(p.tools[i], i)
-    }
-  }
-
-  // Validate tool_choice if provided
-  if (p.tool_choice !== undefined && p.tool_choice !== null) {
-    if (typeof p.tool_choice !== "object") {
-      throw createValidationError("tool_choice: must be an object")
-    }
-    const validTypes = ["auto", "any", "tool", "none"]
-    if (!validTypes.includes(p.tool_choice.type)) {
-      throw createValidationError(
-        `tool_choice.type: must be one of ${validTypes.join(", ")}`,
-      )
-    }
-    if (
-      p.tool_choice.type === "tool"
-      && typeof p.tool_choice.name !== "string"
-    ) {
-      throw createValidationError(
-        "tool_choice.name: required when type is 'tool'",
-      )
-    }
-  }
-
-  // Validate thinking if provided
-  if (p.thinking !== undefined && p.thinking !== null) {
-    if (typeof p.thinking !== "object") {
-      throw createValidationError("thinking: must be an object")
-    }
-    const validThinkingTypes = ["enabled", "adaptive"]
-    if (!validThinkingTypes.includes(p.thinking.type)) {
-      throw createValidationError(
-        `thinking.type: must be one of ${validThinkingTypes.join(", ")}`,
-      )
-    }
-    if (
-      p.thinking.budget_tokens !== undefined
-      && (typeof p.thinking.budget_tokens !== "number"
-        || p.thinking.budget_tokens <= 0)
-    ) {
-      throw createValidationError(
-        "thinking.budget_tokens: must be a positive number",
-      )
-    }
-  }
-
-  // Validate service_tier if provided
-  if (p.service_tier !== undefined && p.service_tier !== null) {
-    const validTiers = ["auto", "standard_only"]
-    if (!validTiers.includes(p.service_tier)) {
-      throw createValidationError(
-        `service_tier: must be one of ${validTiers.join(", ")}`,
-      )
-    }
-  }
-
-  // Validate metadata if provided
-  if (p.metadata !== undefined && p.metadata !== null) {
-    if (typeof p.metadata !== "object") {
-      throw createValidationError("metadata: must be an object")
-    }
-    if (
-      p.metadata.user_id !== undefined
-      && typeof p.metadata.user_id !== "string"
-    ) {
-      throw createValidationError("metadata.user_id: must be a string")
-    }
-  }
+  validateAnthropicCommonFields(p as ValidatedAnthropicBase)
 }
 
 /**
