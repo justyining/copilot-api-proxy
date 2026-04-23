@@ -4,6 +4,7 @@ import type { ClientMode, State } from "./state"
 
 // Version constants — update when VSCode Copilot / Claude Code updates
 const CLAUDE_CODE_VERSION = "2.1.98"
+const AGENT_SDK_VERSION = "0.2.98"
 const API_VERSION = "2025-10-01"
 
 // AB experiment context placeholder (extracted from real VSCode Copilot traffic)
@@ -18,7 +19,7 @@ function getModeConfig(mode: ClientMode): ModeConfig {
   switch (mode) {
     case "claude-code": {
       return {
-        userAgent: `vscode_claude_code/${CLAUDE_CODE_VERSION} (external`,
+        userAgent: `vscode_claude_code/${CLAUDE_CODE_VERSION} (external, sdk-ts, agent-sdk/${AGENT_SDK_VERSION})`,
       }
     }
     case "codex": {
@@ -28,7 +29,7 @@ function getModeConfig(mode: ClientMode): ModeConfig {
     }
     default: {
       return {
-        userAgent: `vscode_claude_code/${CLAUDE_CODE_VERSION} (external`,
+        userAgent: `vscode_claude_code/${CLAUDE_CODE_VERSION} (external, sdk-ts, agent-sdk/${AGENT_SDK_VERSION})`,
       }
     }
   }
@@ -41,9 +42,7 @@ export const standardHeaders = () => ({
 })
 
 export const copilotBaseUrl = (state: State) =>
-  state.accountType === "individual" ?
-    "https://api.githubcopilot.com"
-  : `https://api.${state.accountType}.githubcopilot.com`
+  `https://api.${state.accountType}.githubcopilot.com`
 
 export interface CopilotHeadersOptions {
   state: State
@@ -73,15 +72,15 @@ export function copilotHeaders(
     "x-agent-task-id": randomUUID(),
     "x-copilot-client-exp-assignment-context": AB_EXPERIMENT_CONTEXT,
     "x-github-api-version": API_VERSION,
-    "x-interaction-id": randomUUID(),
+    "x-interaction-id": state.interactionId ?? randomUUID(),
     "x-interaction-type": options.interactionType ?? "conversation-panel",
     "x-request-id": randomUUID(),
     "x-vscode-user-agent-library-version": "electron-fetch",
     "sec-fetch-site": "none",
     "sec-fetch-mode": "no-cors",
     "sec-fetch-dest": "empty",
-    "accept-encoding": "gzip",
-    priority: "u=4",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    priority: "u=4, i",
   }
 
   if (initiator) {
@@ -89,7 +88,8 @@ export function copilotHeaders(
   }
 
   if (state.clientMode === "claude-code") {
-    headers["anthropic-beta"] = "interleaved-thinking-2025-05-14"
+    headers["anthropic-beta"] =
+      "interleaved-thinking-2025-05-14,context-management-2025-06-27"
   }
 
   if (vision) {

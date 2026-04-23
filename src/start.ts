@@ -3,6 +3,7 @@
 import { defineCommand } from "citty"
 import clipboard from "clipboardy"
 import consola from "consola"
+import { randomUUID } from "node:crypto"
 import { serve, type ServerHandler } from "srvx"
 import invariant from "tiny-invariant"
 
@@ -62,11 +63,13 @@ export async function runServer(options: RunServerOptions): Promise<void> {
   state.deviceId = await loadOrCreateDeviceId()
   state.machineId = await loadOrCreateMachineId()
   state.sessionId = generateSessionId()
+  state.interactionId = randomUUID()
   state.clientMode = options.clientMode
 
   consola.info(`Client mode: ${state.clientMode}`)
   consola.info(`Device ID: ${state.deviceId.slice(0, 8)}...`)
   consola.info(`Session ID: ${state.sessionId.slice(0, 8)}...`)
+  consola.info(`Interaction ID: ${state.interactionId.slice(0, 8)}...`)
 
   if (options.githubToken) {
     state.githubToken = options.githubToken

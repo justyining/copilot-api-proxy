@@ -1,0 +1,12 @@
+[16:54:57.420] Loading script strip-bodies.py
+[16:54:57.424] HTTP(S) proxy listening at *:8080.
+127.0.0.1:64885: GET https://main.vscode-cdn.net/extensions/chat.json HTTP/2.0
+     << HTTP/2.0 304 Not Modified 0b
+127.0.0.1:64889: OPTIONS https://default.exp-tas.com/vscode/ab HTTP/2.0
+     << HTTP/2.0 204 No Content 0b
+127.0.0.1:64892: GET https://main.vscode-cdn.net/extensions/marketplace.json HTTP/2.0
+     << HTTP/2.0 200 OK 23b
+127.0.0.1:64889: GET https://default.exp-tas.com/vscode/ab HTTP/2.0
+     << HTTP/2.0 304 Not Modified 0b
+127.0.0.1:64896: GET https://update.code.visualstudio.com/api/update/darwin-… HTTP/2.0
+     << HTTP/2.0 204 No Content 0b

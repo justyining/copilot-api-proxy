@@ -453,6 +453,16 @@ function validateAnthropicContentBlock(
 
       break
     }
+    case "redacted_thinking": {
+      const redactedBlock = b as any
+      if (typeof redactedBlock.data !== "string") {
+        throw createValidationError(
+          `messages[${messageIndex}].content[${blockIndex}].data: must be a string`,
+        )
+      }
+
+      break
+    }
     default: {
       throw createValidationError(
         `messages[${messageIndex}].content[${blockIndex}].type: unsupported block type '${b.type}'`,

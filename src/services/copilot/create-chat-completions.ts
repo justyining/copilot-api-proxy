@@ -10,6 +10,8 @@ import {
 } from "~/lib/error"
 import { state } from "~/lib/state"
 
+import { parseQuotaHeaders } from "./parse-quota-headers"
+
 export const createChatCompletions = async (
   payload: ChatCompletionsPayload,
 ) => {
@@ -57,6 +59,9 @@ export const createChatCompletions = async (
       "GitHub Copilot service is temporarily unavailable",
     )
   }
+
+  // Track quota info from response headers
+  parseQuotaHeaders(response.headers)
 
   if (!response.ok) {
     consola.error(
