@@ -1,50 +1,64 @@
 import type { Context } from "hono"
 
 import consola from "consola"
-import { streamSSE } from "hono/streaming"
 
 import { awaitApproval } from "~/lib/approval"
 import { checkRateLimit } from "~/lib/rate-limit"
 import { state } from "~/lib/state"
 import { validateAnthropicPayload } from "~/lib/validation"
-import {
-  createChatCompletions,
-  type ChatCompletionChunk,
-  type ChatCompletionResponse,
-} from "~/services/copilot/create-chat-completions"
+import { createMessages } from "~/services/copilot/create-messages"
 
-import {
-  type AnthropicMessagesPayload,
-  type AnthropicStreamState,
-} from "./anthropic-types"
-import {
-  translateToAnthropic,
-  translateToOpenAI,
-} from "./non-stream-translation"
-import { translateChunkToAnthropicEvents } from "./stream-translation"
+import type { AnthropicMessagesPayload } from "./anthropic-types"
+
+function mapModelName(model: string): string {
+  if (model === "opus") return "claude-opus-4.6"
+  if (model === "sonnet") return "claude-sonnet-4.6"
+  if (model === "haiku") return "claude-haiku-4.5"
+  if (model.startsWith("claude-sonnet-4-"))
+    return model.replace(/^claude-sonnet-4-.*/, "claude-sonnet-4")
+  if (model.startsWith("claude-opus-"))
+    return model.replace(/^claude-opus-4-.*/, "claude-opus-4")
+  return model
+}
+
+function patchPayload(
+  payload: AnthropicMessagesPayload,
+): Record<string, unknown> {
+  const patched: Record<string, unknown> = { ...payload }
+
+  // Force thinking.type to "adaptive" (Copilot doesn't support "enabled")
+  if (payload.thinking) {
+    patched.thinking = { type: "adaptive" }
+  }
+
+  // Map model name to Copilot format
+  patched.model = mapModelName(payload.model)
+
+  return patched
+}
 
 export async function handleCompletion(c: Context) {
   await checkRateLimit(state)
 
-  const anthropicPayload = await c.req.json<AnthropicMessagesPayload>()
+  const payload = await c.req.json<AnthropicMessagesPayload>()
 
   // Validate the payload before processing
-  validateAnthropicPayload(anthropicPayload)
+  validateAnthropicPayload(payload)
 
-  consola.debug("Anthropic request payload:", JSON.stringify(anthropicPayload))
+  consola.debug("Anthropic request payload:", JSON.stringify(payload))
 
-  const openAIPayload = translateToOpenAI(anthropicPayload)
+  const patchedPayload = patchPayload(payload)
   consola.debug(
-    "Translated OpenAI request payload:",
-    JSON.stringify(openAIPayload),
+    "Patched payload for Copilot /v1/messages:",
+    JSON.stringify(patchedPayload),
   )
 
   // Log model information for Anthropic requests
   const selectedModel = state.models?.data.find(
-    (model) => model.id === openAIPayload.model,
+    (model) => model.id === patchedPayload.model,
   )
   if (selectedModel) {
-    consola.info(`Selected model (Anthropic): ${selectedModel.id}`)
+    consola.info(`Selected model (Anthropic direct): ${selectedModel.id}`)
     consola.info(
       `  Model info: ${selectedModel.vendor} ${selectedModel.name} (${selectedModel.version})`,
     )
@@ -56,7 +70,7 @@ export async function handleCompletion(c: Context) {
     }
   } else {
     consola.warn(
-      `Model not found: requested="${openAIPayload.model}", original="${anthropicPayload.model}", available=[${state.models?.data.map((m) => m.id).join(", ")}]`,
+      `Model not found: requested="${patchedPayload.model}", original="${payload.model}", available=[${state.models?.data.map((m) => m.id).join(", ")}]`,
     )
   }
 
@@ -64,72 +78,25 @@ export async function handleCompletion(c: Context) {
     await awaitApproval()
   }
 
-  const response = await createChatCompletions(openAIPayload)
+  const response = await createMessages(patchedPayload)
 
-  if (isNonStreaming(response)) {
-    consola.debug(
-      "Non-streaming response from Copilot:",
-      JSON.stringify(response).slice(-400),
-    )
-    const anthropicResponse = translateToAnthropic(response)
-    consola.debug(
-      "Translated Anthropic response:",
-      JSON.stringify(anthropicResponse),
-    )
-    return c.json(anthropicResponse)
+  if (payload.stream) {
+    // Pipe the SSE response directly - it's already Anthropic format
+    return new Response(response.body, {
+      status: 200,
+      headers: {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+      },
+    })
   }
 
-  consola.debug("Streaming response from Copilot")
-  return streamSSE(c, async (stream) => {
-    const streamState: AnthropicStreamState = {
-      messageStartSent: false,
-      contentBlockIndex: 0,
-      contentBlockOpen: false,
-      toolCalls: {},
-    }
-
-    try {
-      for await (const rawEvent of response) {
-        consola.debug("Copilot raw stream event:", JSON.stringify(rawEvent))
-        if (rawEvent.data === "[DONE]") {
-          break
-        }
-
-        if (!rawEvent.data) {
-          continue
-        }
-
-        const chunk = JSON.parse(rawEvent.data) as ChatCompletionChunk
-        const events = translateChunkToAnthropicEvents(chunk, streamState)
-
-        for (const event of events) {
-          consola.debug("Translated Anthropic event:", JSON.stringify(event))
-          await stream.writeSSE({
-            event: event.type,
-            data: JSON.stringify(event),
-          })
-        }
-      }
-    } catch (error) {
-      consola.error("Error during streaming:", error)
-      // Send error event to client
-      await stream.writeSSE({
-        event: "error",
-        data: JSON.stringify({
-          type: "error",
-          error: {
-            type: "internal_error",
-            message:
-              error instanceof Error ?
-                error.message
-              : "An error occurred during streaming",
-          },
-        }),
-      })
-    }
-  })
+  // Non-streaming: parse and return JSON
+  const data = await response.json()
+  consola.debug(
+    "Non-streaming response from Copilot /v1/messages:",
+    JSON.stringify(data),
+  )
+  return c.json(data)
 }
-
-const isNonStreaming = (
-  response: Awaited<ReturnType<typeof createChatCompletions>>,
-): response is ChatCompletionResponse => Object.hasOwn(response, "choices")

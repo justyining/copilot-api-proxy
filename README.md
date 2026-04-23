@@ -1,523 +1,151 @@
-# Copilot API Proxy
-
-> [!NOTE]
-> **Fork Information**
-> This is a fork of [ericc-ch/copilot-api](https://github.com/ericc-ch/copilot-api) maintained by [@justyining](https://github.com/justyining).
->
-> **Fork Purpose**: This fork aims to explore improvements in code quality, security practices, testing coverage, and documentation while maintaining compatibility with the upstream project. For details on what's different, see [FORK_NOTES.md](./FORK_NOTES.md).
->
-> **Upstream Sync**: This fork periodically syncs with the upstream repository. To use the official version, visit [ericc-ch/copilot-api](https://github.com/ericc-ch/copilot-api).
+# Copilot API
 
 > [!WARNING]
-> This is a reverse-engineered proxy of GitHub Copilot API. It is not supported by GitHub, and may break unexpectedly. Use at your own risk.
+> 本项目为逆向代理，非 GitHub 官方支持，可能随时失效。过量使用可能触发 GitHub 滥用检测，导致账号被限制。请谨慎、负责任地使用。
 
-> [!WARNING]
-> **GitHub Security Notice:**  
-> Excessive automated or scripted use of Copilot (including rapid or bulk requests, such as via automated tools) may trigger GitHub's abuse-detection systems.  
-> You may receive a warning from GitHub Security, and further anomalous activity could result in temporary suspension of your Copilot access.
->
-> GitHub prohibits use of their servers for excessive automated bulk activity or any activity that places undue burden on their infrastructure.
->
-> Please review:
->
-> - [GitHub Acceptable Use Policies](https://docs.github.com/site-policy/acceptable-use-policies/github-acceptable-use-policies#4-spam-and-inauthentic-activity-on-github)
-> - [GitHub Copilot Terms](https://docs.github.com/site-policy/github-terms/github-terms-for-additional-products-and-features#github-copilot)
->
-> Use this proxy responsibly to avoid account restrictions.
+将 GitHub Copilot 转为 OpenAI/Anthropic 兼容 API，可直接驱动 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) 等工具。
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/E1E519XS7W)
+本项目 fork 自 [ericc-ch/copilot-api](https://github.com/ericc-ch/copilot-api)，由 [@justyining](https://github.com/justyining) 维护。差异详见 [FORK_NOTES.md](./FORK_NOTES.md)。
 
----
+**前置条件**：GitHub 账号已订阅 Copilot。
 
-**📚 New to Copilot API?** Check out the [Quickstart Guide](docs/quickstart.md) for a 5-minute setup walkthrough!
+## 快速上手
 
----
+### 从源码运行
 
-**Note:** If you are using [opencode](https://github.com/sst/opencode), you do not need this project. Opencode supports GitHub Copilot provider out of the box.
-
----
-
-## Project Overview
-
-A reverse-engineered proxy for the GitHub Copilot API that exposes it as an OpenAI and Anthropic compatible service. This allows you to use GitHub Copilot with any tool that supports the OpenAI Chat Completions API or the Anthropic Messages API, including to power [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview).
-
-## What's Different in This Fork
-
-- Maintained by [@justyining](https://github.com/justyining) and kept in sync with [ericc-ch/copilot-api](https://github.com/ericc-ch/copilot-api), but released separately.
-- Adds Anthropic parity and stricter request validation for both OpenAI- and Anthropic-style payloads, including `/v1/messages` and `/v1/messages/count_tokens`.
-- Provides extra tooling for visibility and integration: `/usage` dashboard, `check-usage` and `debug` commands, and a `--claude-code` helper for Claude Code setup.
-- Hardens runtime defaults with a non-root Docker image, health/ready endpoints, and clearer token-handling guidance (see [SECURITY.md](./SECURITY.md)).
-- Expands documentation with a quickstart, compatibility matrix, and fork notes—see [FORK_NOTES.md](./FORK_NOTES.md) for the detailed delta.
-
-## Features
-
-- **OpenAI & Anthropic Compatibility**: Exposes GitHub Copilot as an OpenAI-compatible (`/v1/chat/completions`, `/v1/models`, `/v1/embeddings`) and Anthropic-compatible (`/v1/messages`) API.
-- **Claude Code Integration**: Easily configure and launch [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) to use Copilot as its backend with a simple command-line flag (`--claude-code`).
-- **Usage Dashboard**: A web-based dashboard to monitor your Copilot API usage, view quotas, and see detailed statistics.
-- **Rate Limit Control**: Manage API usage with rate-limiting options (`--rate-limit`) and a waiting mechanism (`--wait`) to prevent errors from rapid requests.
-- **Manual Request Approval**: Manually approve or deny each API request for fine-grained control over usage (`--manual`).
-- **Token Visibility**: Option to display GitHub and Copilot tokens during authentication and refresh for debugging (`--show-token`).
-- **Flexible Authentication**: Authenticate interactively or provide a GitHub token directly, suitable for CI/CD environments.
-- **Support for Different Account Types**: Works with individual, business, and enterprise GitHub Copilot plans.
-
-## Demo
-
-https://github.com/user-attachments/assets/7654b383-669d-4eb9-b23c-06d7aefee8c5
-
-## Prerequisites
-
-- Bun (>= 1.2.x)
-- GitHub account with Copilot subscription (individual, business, or enterprise)
-
-## Installation
-
-To install dependencies, run:
-
-```sh
+```bash
+git clone https://github.com/justyining/copilot-api.git
+cd copilot-api
 bun install
+bun run dev
 ```
 
-## Using with Docker
+首次运行会提示打开 https://github.com/login/device 并输入设备码完成授权。
 
-Build image
+### Docker 部署
 
-```sh
+```bash
 docker build -t copilot-api .
+mkdir -p copilot-data
+docker run -p 4141:4141 \
+  -e GH_TOKEN=your_github_token \
+  -v $(pwd)/copilot-data:/home/copilot/.local/share/copilot-api \
+  copilot-api
 ```
 
-Run the container
+或 docker-compose：
 
-```sh
-# Create a directory on your host to persist the GitHub token and related data
-mkdir -p ./copilot-data
-
-# Run the container with a bind mount to persist the token
-# This ensures your authentication survives container restarts
-# Note: The container now runs as a non-root user (copilot:1001)
-
-docker run -p 4141:4141 -v $(pwd)/copilot-data:/home/copilot/.local/share/copilot-api copilot-api
+```bash
+echo 'GH_TOKEN=your_github_token' > .env
+docker compose up -d
 ```
 
-> **Note:**
-> The GitHub token and related data will be stored in `copilot-data` on your host. This is mapped to `/home/copilot/.local/share/copilot-api` inside the container (running as non-root user `copilot`), ensuring persistence across restarts.
+### 验证
 
-### Docker with Environment Variables
-
-You can pass the GitHub token directly to the container using environment variables:
-
-```sh
-# Build with GitHub token
-docker build --build-arg GH_TOKEN=your_github_token_here -t copilot-api .
-
-# Run with GitHub token
-docker run -p 4141:4141 -e GH_TOKEN=your_github_token_here copilot-api
-
-# Run with additional options
-docker run -p 4141:4141 -e GH_TOKEN=your_token copilot-api start --verbose --port 4141
+```bash
+curl http://localhost:4141/v1/models
 ```
 
-### Docker Compose Example
+返回模型列表即表示服务正常。
 
-```yaml
-version: "3.8"
-services:
-  copilot-api:
-    build: .
-    ports:
-      - "4141:4141"
-    environment:
-      - GH_TOKEN=your_github_token_here
-    restart: unless-stopped
+## 配合 Claude Code 使用
+
+### 方式一：一键 wrapper 脚本（推荐）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/justyining/copilot-api/master/install.sh | bash
 ```
 
-The Docker image includes:
+安装后直接运行：
 
-- Multi-stage build for optimized image size
-- Non-root user for enhanced security
-- Health check for container monitoring
-- Pinned base image version for reproducible builds
-
-## Using with npx
-
-You can run the project directly using npx:
-
-```sh
-npx copilot-api@latest start
+```bash
+claude-copilot          # 等同于 claude，但自动连接本地 copilot-api
+claude-copilot --chat   # 透传所有 claude 原始参数
 ```
 
-With options:
+### 方式二：手动配置 settings.json
 
-```sh
-npx copilot-api@latest start --port 8080
-```
-
-For authentication only:
-
-```sh
-npx copilot-api@latest auth
-```
-
-## Command Structure
-
-Copilot API now uses a subcommand structure with these main commands:
-
-- `start`: Start the Copilot API server. This command will also handle authentication if needed.
-- `auth`: Run GitHub authentication flow without starting the server. This is typically used if you need to generate a token for use with the `--github-token` option, especially in non-interactive environments.
-- `check-usage`: Show your current GitHub Copilot usage and quota information directly in the terminal (no server required).
-- `debug`: Display diagnostic information including version, runtime details, file paths, and authentication status. Useful for troubleshooting and support.
-
-## Command Line Options
-
-### Start Command Options
-
-The following command line options are available for the `start` command:
-
-| Option         | Description                                                                   | Default    | Alias |
-| -------------- | ----------------------------------------------------------------------------- | ---------- | ----- |
-| --port         | Port to listen on                                                             | 4141       | -p    |
-| --verbose      | Enable verbose logging                                                        | false      | -v    |
-| --account-type | Account type to use (individual, business, enterprise)                        | individual | -a    |
-| --manual       | Enable manual request approval                                                | false      | none  |
-| --rate-limit   | Rate limit in seconds between requests                                        | none       | -r    |
-| --wait         | Wait instead of error when rate limit is hit                                  | false      | -w    |
-| --github-token | Provide GitHub token directly (must be generated using the `auth` subcommand) | none       | -g    |
-| --claude-code  | Generate a command to launch Claude Code with Copilot API config              | false      | -c    |
-| --show-token   | Show GitHub and Copilot tokens on fetch and refresh                           | false      | none  |
-| --proxy-env    | Initialize proxy from environment variables                                   | false      | none  |
-
-### Auth Command Options
-
-| Option       | Description               | Default | Alias |
-| ------------ | ------------------------- | ------- | ----- |
-| --verbose    | Enable verbose logging    | false   | -v    |
-| --show-token | Show GitHub token on auth | false   | none  |
-
-### Debug Command Options
-
-| Option | Description               | Default | Alias |
-| ------ | ------------------------- | ------- | ----- |
-| --json | Output debug info as JSON | false   | none  |
-
-## API Endpoints
-
-The server exposes several endpoints to interact with the Copilot API. It provides OpenAI-compatible endpoints and now also includes support for Anthropic-compatible endpoints, allowing for greater flexibility with different tools and services.
-
-### API Compatibility Matrix
-
-The following table shows the current compatibility status with OpenAI and Anthropic APIs:
-
-| Feature | OpenAI API | Anthropic API | Notes |
-|---------|-----------|---------------|-------|
-| Chat Completions | ✅ Full Support | ✅ Full Support | Basic conversational AI |
-| Streaming | ✅ Supported | ✅ Supported | Real-time response streaming |
-| Model Listing | ✅ Supported | ✅ Supported | Returns available Copilot models |
-| Embeddings | ✅ Supported | ❌ Not Available | Vector embeddings for text |
-| Tool/Function Calling | ⚠️ Partial | ⚠️ Partial | Basic tool use supported |
-| Vision/Image Input | ⚠️ Partial | ⚠️ Partial | Limited multimodal support |
-| Token Counting | ✅ Supported | ✅ Supported | `/v1/messages/count_tokens` |
-| System Messages | ✅ Supported | ✅ Supported | System prompts supported |
-| Message History | ✅ Supported | ✅ Supported | Multi-turn conversations |
-| Temperature Control | ✅ Supported | ✅ Supported | Creativity parameter |
-| Max Tokens | ✅ Supported | ✅ Supported | Response length control |
-| Stop Sequences | ✅ Supported | ✅ Supported | Custom stop tokens |
-| Top-P Sampling | ✅ Supported | ✅ Supported | Nucleus sampling |
-| Presence/Frequency Penalties | ⚠️ Limited | ⚠️ Limited | May not work as expected |
-
-**Legend:**
-- ✅ Full Support: Feature works as documented
-- ⚠️ Partial/Limited: Feature works with limitations or differences
-- ❌ Not Available: Feature not supported by underlying Copilot API
-
-### OpenAI Compatible Endpoints
-
-These endpoints mimic the OpenAI API structure.
-
-| Endpoint                    | Method | Description                                               |
-| --------------------------- | ------ | --------------------------------------------------------- |
-| `POST /v1/chat/completions` | `POST` | Creates a model response for the given chat conversation. |
-| `GET /v1/models`            | `GET`  | Lists the currently available models.                     |
-| `POST /v1/embeddings`       | `POST` | Creates an embedding vector representing the input text.  |
-
-### Anthropic Compatible Endpoints
-
-These endpoints are designed to be compatible with the Anthropic Messages API.
-
-| Endpoint                         | Method | Description                                                  |
-| -------------------------------- | ------ | ------------------------------------------------------------ |
-| `POST /v1/messages`              | `POST` | Creates a model response for a given conversation.           |
-| `POST /v1/messages/count_tokens` | `POST` | Calculates the number of tokens for a given set of messages. |
-
-### Usage Monitoring Endpoints
-
-New endpoints for monitoring your Copilot usage and quotas.
-
-| Endpoint     | Method | Description                                                  |
-| ------------ | ------ | ------------------------------------------------------------ |
-| `GET /usage` | `GET`  | Get detailed Copilot usage statistics and quota information. |
-| `GET /token` | `GET`  | Get the current Copilot token being used by the API.         |
-
-### Health Check Endpoints
-
-Endpoints for container orchestration and monitoring.
-
-| Endpoint      | Method | Description                                                                      |
-| ------------- | ------ | -------------------------------------------------------------------------------- |
-| `GET /health` | `GET`  | Liveness probe - returns 200 if server is running.                              |
-| `GET /ready`  | `GET`  | Readiness probe - returns 200 if server is ready (token and models initialized). |
-
-## API Compatibility Matrix
-
-This proxy provides compatibility layers for both OpenAI and Anthropic APIs, but there are some limitations and differences to be aware of:
-
-| Capability              | Status            | Notes                                                                 |
-| ----------------------- | ----------------- | --------------------------------------------------------------------- |
-| Chat Completions        | ✅ Supported       | Compatible with OpenAI `/v1/chat/completions` format                  |
-| Messages API            | ✅ Supported       | Compatible with Anthropic `/v1/messages` format                       |
-| Models Listing          | ✅ Supported       | Returns available Copilot models                                      |
-| Embeddings              | ✅ Supported       | Basic embedding support via Copilot API                               |
-| Token Counting          | ✅ Supported       | Anthropic-style `/v1/messages/count_tokens` endpoint                  |
-| Streaming               | ✅ Supported       | SSE streaming for both OpenAI and Anthropic formats                   |
-| Tool/Function Calling   | ⚠️ Partial Support | Supported but may have edge cases with complex tool definitions       |
-| Vision/Image Input      | ⚠️ Partial Support | Depends on Copilot model capabilities; format translation may vary    |
-| Multiple Tool Calls     | ⚠️ Partial Support | Parallel tool calls supported but test coverage is limited            |
-| System Messages         | ✅ Supported       | Translated to Copilot-compatible format                               |
-| Temperature/Top-p       | ✅ Supported       | Passed through to Copilot API                                         |
-| Max Tokens              | ✅ Supported       | Auto-filled from model capabilities if not provided                   |
-| Stop Sequences          | ⚠️ Partial Support | Supported but behavior may differ from OpenAI/Anthropic               |
-| Logprobs                | ❌ Not Supported   | Not available in Copilot API                                          |
-| Response Format (JSON)  | ⚠️ Limited         | JSON mode support depends on underlying Copilot model                 |
-| Audio/Multimodal        | ❌ Not Supported   | Currently only text and image inputs supported                        |
-| Fine-tuned Models       | ❌ Not Supported   | Only standard Copilot models available                                |
-| Batch API               | ❌ Not Supported   | No batch processing support                                           |
-
-### Known API Differences
-
-- **Token Limits**: Token limits are determined by the underlying Copilot model and may differ from OpenAI/Anthropic equivalents
-- **Error Formats**: Error responses attempt to match OpenAI/Anthropic formats but may have slight variations
-- **Rate Limiting**: Uses custom rate limiting (via `--rate-limit` flag) rather than OpenAI/Anthropic rate limit headers
-- **Model Names**: Model IDs are Copilot-specific (e.g., `gpt-4.1`) and differ from OpenAI/Anthropic naming
-- **Streaming Format**: While compatible, SSE event structure may have minor differences in edge cases
-
-## Example Usage
-
-Using with npx:
-
-```sh
-# Basic usage with start command
-npx copilot-api@latest start
-
-# Run on custom port with verbose logging
-npx copilot-api@latest start --port 8080 --verbose
-
-# Use with a business plan GitHub account
-npx copilot-api@latest start --account-type business
-
-# Use with an enterprise plan GitHub account
-npx copilot-api@latest start --account-type enterprise
-
-# Enable manual approval for each request
-npx copilot-api@latest start --manual
-
-# Set rate limit to 30 seconds between requests
-npx copilot-api@latest start --rate-limit 30
-
-# Wait instead of error when rate limit is hit
-npx copilot-api@latest start --rate-limit 30 --wait
-
-# Provide GitHub token directly
-npx copilot-api@latest start --github-token ghp_YOUR_TOKEN_HERE
-
-# Run only the auth flow
-npx copilot-api@latest auth
-
-# Run auth flow with verbose logging
-npx copilot-api@latest auth --verbose
-
-# Show your Copilot usage/quota in the terminal (no server needed)
-npx copilot-api@latest check-usage
-
-# Display debug information for troubleshooting
-npx copilot-api@latest debug
-
-# Display debug information in JSON format
-npx copilot-api@latest debug --json
-
-# Initialize proxy from environment variables (HTTP_PROXY, HTTPS_PROXY, etc.)
-npx copilot-api@latest start --proxy-env
-```
-
-## Using the Usage Viewer
-
-After starting the server, a URL to the Copilot Usage Dashboard will be displayed in your console. This dashboard is a web interface for monitoring your API usage.
-
-1.  Start the server. For example, using npx:
-    ```sh
-    npx copilot-api@latest start
-    ```
-2.  The server will output a URL to the usage viewer. Copy and paste this URL into your browser. It will look something like this:
-    `https://ericc-ch.github.io/copilot-api?endpoint=http://localhost:4141/usage`
-    - If you use the `start.bat` script on Windows, this page will open automatically.
-
-The dashboard provides a user-friendly interface to view your Copilot usage data:
-
-- **API Endpoint URL**: The dashboard is pre-configured to fetch data from your local server endpoint via the URL query parameter. You can change this URL to point to any other compatible API endpoint.
-- **Fetch Data**: Click the "Fetch" button to load or refresh the usage data. The dashboard will automatically fetch data on load.
-- **Usage Quotas**: View a summary of your usage quotas for different services like Chat and Completions, displayed with progress bars for a quick overview.
-- **Detailed Information**: See the full JSON response from the API for a detailed breakdown of all available usage statistics.
-- **URL-based Configuration**: You can also specify the API endpoint directly in the URL using a query parameter. This is useful for bookmarks or sharing links. For example:
-  `https://ericc-ch.github.io/copilot-api?endpoint=http://your-api-server/usage`
-
-## Using with Claude Code
-
-This proxy can be used to power [Claude Code](https://docs.anthropic.com/en/claude-code), an experimental conversational AI assistant for developers from Anthropic.
-
-There are two ways to configure Claude Code to use this proxy:
-
-### Interactive Setup with `--claude-code` flag
-
-To get started, run the `start` command with the `--claude-code` flag:
-
-```sh
-npx copilot-api@latest start --claude-code
-```
-
-You will be prompted to select a primary model and a "small, fast" model for background tasks. After selecting the models, a command will be copied to your clipboard. This command sets the necessary environment variables for Claude Code to use the proxy.
-
-Paste and run this command in a new terminal to launch Claude Code.
-
-### Manual Configuration with `settings.json`
-
-Alternatively, you can configure Claude Code by creating a `.claude/settings.json` file in your project's root directory. This file should contain the environment variables needed by Claude Code. This way you don't need to run the interactive setup every time.
-
-Here is an example `.claude/settings.json` file:
+在项目根目录创建 `.claude/settings.json`：
 
 ```json
 {
   "env": {
     "ANTHROPIC_AUTH_TOKEN": "yougotthekey",
     "ANTHROPIC_BASE_URL": "http://localhost:4141",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4.6",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4.7",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4.6",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4.5",
     "CLAUDE_CODE_DISABLE_1M_CONTEXT": 1,
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1
   },
   "permissions": {
-    "deny": [
-      "WebSearch"
-    ]
+    "deny": ["WebSearch"]
   }
 }
 ```
 
-You can find more options here: [Claude Code settings](https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables)
+## 命令行选项
 
-You can also read more about IDE integration here: [Add Claude Code to your IDE](https://docs.anthropic.com/en/docs/claude-code/ide-integrations)
+### start
 
-## Known Limitations and Risks
-
-### Important Disclaimers
-
-This project is a **reverse-engineered proxy** for GitHub Copilot. Please be aware of the following limitations and risks:
-
-#### ⚠️ Not Officially Supported
-- This proxy is **not affiliated with, endorsed by, or supported by GitHub**
-- The underlying Copilot API is not officially documented
-- GitHub may change their API at any time without notice, causing this proxy to break
-- No service-level agreements or guarantees
-
-#### ⚠️ Account and Usage Risks
-- **Excessive automated usage may trigger GitHub's abuse detection systems**
-- You may receive security warnings from GitHub
-- Continued anomalous activity could result in **temporary suspension** of your Copilot access
-- High-frequency automated requests are **not recommended**
-- Review [GitHub's Acceptable Use Policies](https://docs.github.com/site-policy/acceptable-use-policies/github-acceptable-use-policies) and [Copilot Terms](https://docs.github.com/site-policy/github-terms/github-terms-for-additional-products-and-features#github-copilot)
-
-#### ⚠️ Security Considerations
-- This proxy handles sensitive authentication tokens
-- The `/token` endpoint exposes your Copilot token - **restrict access carefully**
-- Never expose this service to the public internet without proper authentication
-- See [SECURITY.md](SECURITY.md) for detailed security guidelines
-
-#### ⚠️ Feature Limitations
-- Some OpenAI/Anthropic API features may not work exactly as documented
-- Vision/multimodal support is limited
-- Tool/function calling has known limitations
-- Some parameters may be ignored or behave differently
-- Refer to the [API Compatibility Matrix](#api-compatibility-matrix) for details
-
-#### ⚠️ Best Use Cases
-This proxy is **suitable** for:
-- Personal development and experimentation
-- Learning and educational purposes
-- Low-frequency interactive usage
-- Integration with tools like Claude Code for personal projects
-
-This proxy is **not recommended** for:
-- Production applications or critical services
-- High-frequency automated requests or batch processing
-- Services exposed to end users
-- Any use case requiring official support or SLAs
-- Commercial applications without proper authorization
-
-### Responsible Usage Guidelines
-
-To minimize risks and use this proxy responsibly:
-
-1. **Respect Rate Limits**: Use `--rate-limit` to throttle requests
-2. **Monitor Your Usage**: Check the `/usage` endpoint regularly
-3. **Start Small**: Test with `--manual` mode before automation
-4. **Stay Updated**: Keep this proxy updated to the latest version
-5. **Read the Policies**: Familiarize yourself with GitHub's terms and policies
-6. **Secure Your Deployment**: Follow the security guidelines in [SECURITY.md](SECURITY.md)
-7. **Have a Backup Plan**: Don't rely solely on this proxy for critical workflows
-
-## Using from Source
-
-The project can be run from source in several ways:
-
-### Development Mode
-
-```sh
-bun run dev
+```bash
+copilot-api start [选项]
 ```
 
-### Production Mode
+| 选项           | 说明                                           | 默认值     | 别名 |
+| -------------- | ---------------------------------------------- | ---------- | ---- |
+| --port         | 监听端口                                       | 4141       | -p   |
+| --verbose      | 详细日志                                       | false      | -v   |
+| --account-type | 账号类型（individual/business/enterprise）      | individual | -a   |
+| --manual       | 手动审批每个请求                               | false      |      |
+| --rate-limit   | 请求间隔（秒）                                 | 无         | -r   |
+| --wait         | 触发限流时等待而非报错                         | false      | -w   |
+| --github-token | 直接提供 GitHub token                          | 无         | -g   |
+| --claude-code  | 生成 Claude Code 启动命令                      | false      | -c   |
+| --show-token   | 显示 GitHub 和 Copilot token                   | false      |      |
+| --proxy-env    | 从环境变量初始化代理（HTTP_PROXY 等）          | false      |      |
 
-```sh
-bun run start
-```
+### 其他命令
 
-## Security Best Practices
+- `auth` — 仅执行 GitHub 授权流程
+- `check-usage` — 查看当前 Copilot 用量和配额
+- `debug` — 输出诊断信息（`--json` 输出 JSON 格式）
 
-> [!IMPORTANT]
-> This proxy handles sensitive GitHub and Copilot tokens. Follow these security practices:
+## API 端点
 
-### Token Security
-- **Never share tokens**: The `--show-token` flag is for debugging only. Never use it in shared terminals, CI/CD logs, or screenshots.
-- **Secure the `/token` endpoint**: This endpoint exposes your Copilot token. Only use it locally or behind proper authentication.
-- **Environment variables**: When using Docker with `GH_TOKEN`, ensure your container runtime is secure and logs are protected.
-- **Token rotation**: Regularly rotate your GitHub tokens and reauthenticate.
+服务默认监听 `http://localhost:4141`。
 
-### API Endpoint Security
-- **`/token` endpoint**: Consider this endpoint sensitive. In production deployments, either:
-  - Disable it completely
-  - Restrict access to localhost only
-  - Put it behind authentication/authorization
-- **Manual approval mode**: Use `--manual` flag when you want explicit control over each request.
-- **Rate limiting**: Always use `--rate-limit` to prevent excessive automated usage that could trigger GitHub's abuse detection.
+### OpenAI 兼容
 
-### Deployment Security
-- **Docker**: Run containers with minimal privileges. Consider using non-root users (see [SECURITY.md](./SECURITY.md)).
-- **Network exposure**: Only expose the API to trusted networks. Use reverse proxies with authentication for internet-facing deployments.
-- **Logging**: Disable verbose logging (`--verbose`) in production to prevent token leakage in logs.
+| 端点                         | 说明           |
+| ---------------------------- | -------------- |
+| `POST /v1/chat/completions`  | 对话补全       |
+| `GET /v1/models`             | 模型列表       |
+| `POST /v1/embeddings`        | 文本向量化     |
 
-For more security information and responsible disclosure, see [SECURITY.md](./SECURITY.md).
+### Anthropic 兼容
 
-## Usage Tips
+| 端点                              | 说明         |
+| --------------------------------- | ------------ |
+| `POST /v1/messages`               | 消息对话     |
+| `POST /v1/messages/count_tokens`  | Token 计数   |
 
-- To avoid hitting GitHub Copilot's rate limits, you can use the following flags:
-  - `--manual`: Enables manual approval for each request, giving you full control over when requests are sent.
-  - `--rate-limit <seconds>`: Enforces a minimum time interval between requests. For example, `copilot-api start --rate-limit 30` will ensure there's at least a 30-second gap between requests.
-  - `--wait`: Use this with `--rate-limit`. It makes the server wait for the cooldown period to end instead of rejecting the request with an error. This is useful for clients that don't automatically retry on rate limit errors.
-- If you have a GitHub business or enterprise plan account with Copilot, use the `--account-type` flag (e.g., `--account-type business`). See the [official documentation](https://docs.github.com/en/enterprise-cloud@latest/copilot/managing-copilot/managing-github-copilot-in-your-organization/managing-access-to-github-copilot-in-your-organization/managing-github-copilot-access-to-your-organizations-network#configuring-copilot-subscription-based-network-routing-for-your-enterprise-or-organization) for more details.
+### 监控
+
+| 端点          | 说明                     |
+| ------------- | ------------------------ |
+| `GET /usage`  | Copilot 用量统计         |
+| `GET /token`  | 当前 Copilot token       |
+| `GET /health` | 存活探针                 |
+| `GET /ready`  | 就绪探针（token 已初始化）|
+
+## 安全须知
+
+- 本项目处理敏感 token，切勿暴露到公网
+- `/token` 端点会泄露 Copilot token，仅限本地使用
+- 使用 `--rate-limit` 控制请求频率，避免触发 GitHub 滥用检测
+- 更多安全实践见 [SECURITY.md](./SECURITY.md)
+
+## 许可证
+
+与上游一致，见 [LICENSE](./LICENSE)。

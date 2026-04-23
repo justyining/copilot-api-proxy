@@ -178,8 +178,11 @@ export function validateAnthropicPayload(
     if (typeof p.thinking !== "object") {
       throw createValidationError("thinking: must be an object")
     }
-    if (p.thinking.type !== "enabled") {
-      throw createValidationError("thinking.type: must be 'enabled'")
+    const validThinkingTypes = ["enabled", "adaptive"]
+    if (!validThinkingTypes.includes(p.thinking.type)) {
+      throw createValidationError(
+        `thinking.type: must be one of ${validThinkingTypes.join(", ")}`,
+      )
     }
     if (
       p.thinking.budget_tokens !== undefined
@@ -370,8 +373,11 @@ export function validateAnthropicCountTokensPayload(
     if (typeof p.thinking !== "object") {
       throw createValidationError("thinking: must be an object")
     }
-    if (p.thinking.type !== "enabled") {
-      throw createValidationError("thinking.type: must be 'enabled'")
+    const validThinkingTypes = ["enabled", "adaptive"]
+    if (!validThinkingTypes.includes(p.thinking.type)) {
+      throw createValidationError(
+        `thinking.type: must be one of ${validThinkingTypes.join(", ")}`,
+      )
     }
     if (
       p.thinking.budget_tokens !== undefined
