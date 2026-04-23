@@ -48,12 +48,17 @@ export function translateToOpenAI(
 
 export function translateModelName(model: string): string {
   // Claude Code sends short aliases like "opus", "sonnet", "haiku"
-  if (model === "opus") {
-    return "claude-opus-4.6"
-  } else if (model === "sonnet") {
-    return "claude-sonnet-4.6"
-  } else if (model === "haiku") {
-    return "claude-haiku-4.5"
+  switch (model) {
+    case "opus": {
+      return "claude-opus-4.6"
+    }
+    case "sonnet": {
+      return "claude-sonnet-4.6"
+    }
+    case "haiku": {
+      return "claude-haiku-4.5"
+    }
+    // No default
   }
   // Subagent requests use a specific model number which Copilot doesn't support
   if (model.startsWith("claude-sonnet-4-")) {

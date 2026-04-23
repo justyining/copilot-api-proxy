@@ -1,3 +1,5 @@
+import consola from "consola"
+
 import type {
   ChatCompletionsPayload,
   ContentPart,
@@ -6,8 +8,6 @@ import type {
   ToolCall,
 } from "~/services/copilot/create-chat-completions"
 import type { Model } from "~/services/copilot/get-models"
-
-import consola from "consola"
 
 // Encoder type mapping
 const ENCODING_MAP = {

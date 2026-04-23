@@ -10,16 +10,7 @@ import { createMessages } from "~/services/copilot/create-messages"
 
 import type { AnthropicMessagesPayload } from "./anthropic-types"
 
-function mapModelName(model: string): string {
-  if (model === "opus") return "claude-opus-4.6"
-  if (model === "sonnet") return "claude-sonnet-4.6"
-  if (model === "haiku") return "claude-haiku-4.5"
-  if (model.startsWith("claude-sonnet-4-"))
-    return model.replace(/^claude-sonnet-4-.*/, "claude-sonnet-4")
-  if (model.startsWith("claude-opus-"))
-    return model.replace(/^claude-opus-4-.*/, "claude-opus-4")
-  return model
-}
+import { translateModelName } from "./non-stream-translation"
 
 function patchPayload(
   payload: AnthropicMessagesPayload,
@@ -32,7 +23,7 @@ function patchPayload(
   }
 
   // Map model name to Copilot format
-  patched.model = mapModelName(payload.model)
+  patched.model = translateModelName(payload.model)
 
   return patched
 }

@@ -2,6 +2,8 @@ import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { logger } from "hono/logger"
 
+import { forwardError } from "~/lib/error"
+
 import { completionRoutes } from "./routes/chat-completions/route"
 import { embeddingRoutes } from "./routes/embeddings/route"
 import { healthRoute, readyRoute } from "./routes/health/route"
@@ -14,6 +16,7 @@ export const server = new Hono()
 
 server.use(logger())
 server.use(cors())
+server.onError(async (error, c) => forwardError(c, error))
 
 server.get("/", (c) => c.text("Server running"))
 
