@@ -61,6 +61,7 @@ export function copilotHeaders(
   const headers: Record<string, string> = {
     Authorization: `Bearer ${state.copilotToken}`,
     "content-type": "application/json",
+    accept: "application/json",
     "editor-device-id": state.deviceId ?? "",
     "editor-plugin-version": `copilot-chat/${state.copilotVersion}`,
     "editor-version": `vscode/${state.vsCodeVersion}`,
