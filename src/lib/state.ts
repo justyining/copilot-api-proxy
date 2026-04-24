@@ -30,6 +30,9 @@ export interface State {
   rateLimitSeconds?: number
   lastRequestTimestamp?: number
 
+  // Server port (set during startup)
+  port?: number
+
   // Token refresh timer
   tokenRefreshTimerId?: ReturnType<typeof setTimeout>
 }

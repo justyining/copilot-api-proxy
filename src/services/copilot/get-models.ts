@@ -1,13 +1,24 @@
+import consola from "consola"
+
 import { copilotBaseUrl, copilotHeaders } from "~/lib/api-config"
 import { HTTPError } from "~/lib/error"
 import { state } from "~/lib/state"
 
 export const getModels = async () => {
-  const response = await fetch(`${copilotBaseUrl(state)}/models`, {
+  const url = `${copilotBaseUrl(state)}/models`
+  consola.info(`→ Copilot endpoint: GET ${url}`)
+  const response = await fetch(url, {
     headers: copilotHeaders({ state }),
   })
 
-  if (!response.ok) throw new HTTPError("Failed to get models", response)
+  if (!response.ok) {
+    const body = await response.text().catch(() => "")
+    consola.error(
+      `Failed to get models: ${response.status} ${response.statusText}`,
+      body,
+    )
+    throw new HTTPError("Failed to get models", response)
+  }
 
   return (await response.json()) as ModelsResponse
 }
@@ -31,6 +42,10 @@ interface ModelSupports {
   adaptive_thinking?: boolean
   max_thinking_budget?: number
   min_thinking_budget?: number
+  reasoning_effort?: Array<string>
+  streaming?: boolean
+  structured_outputs?: boolean
+  vision?: boolean
 }
 
 interface ModelCapabilities {

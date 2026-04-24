@@ -23,6 +23,15 @@ export const createChatCompletions = async (
       && x.content?.some((x) => x.type === "image_url"),
   )
 
+  if (enableVision) {
+    const model = state.models?.data.find((m) => m.id === payload.model)
+    if (model && !model.capabilities.supports.vision) {
+      consola.warn(
+        `Model ${payload.model} does not support vision, but request contains image_url parts — upstream will likely reject it.`,
+      )
+    }
+  }
+
   // Agent/user check for X-Initiator header
   // Determine if any message is from an agent ("assistant" or "tool")
   const isAgentCall = payload.messages.some((msg) =>
@@ -37,10 +46,13 @@ export const createChatCompletions = async (
     initiator: isAgentCall ? "agent" : "user",
   })
 
+  const url = `${copilotBaseUrl(state)}/chat/completions`
+  consola.info(`→ Copilot endpoint: POST ${url}`)
+
   let response: Response
 
   try {
-    response = await fetch(`${copilotBaseUrl(state)}/chat/completions`, {
+    response = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),

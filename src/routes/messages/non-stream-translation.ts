@@ -98,17 +98,10 @@ export function translateModelName(model: string): string {
   }
 
   // Subagent requests use versioned names like claude-sonnet-4-20250514
-  // that Copilot doesn't support — map to the base model in that family
+  // that Copilot doesn't expose — fall back to the latest model in that family.
   const familyMatch = model.match(/^claude-(sonnet|opus|haiku)-/)
   if (familyMatch) {
-    const family = familyMatch[1]
-    // Try exact family match first (e.g. claude-sonnet-4-6 → claude-sonnet-4)
-    const baseMatch = state.models?.data.find(
-      (m) => m.id === `claude-${family}-4`,
-    )
-    if (baseMatch) return baseMatch.id
-    // Fallback to latest in family
-    const latest = findLatestModel(family)
+    const latest = findLatestModel(familyMatch[1])
     if (latest) return latest
   }
 

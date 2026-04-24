@@ -1,8 +1,11 @@
+import consola from "consola"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { logger } from "hono/logger"
 
+import { getActiveClientCount } from "~/lib/client-registry"
 import { forwardError } from "~/lib/error"
+import { state } from "~/lib/state"
 
 import { completionRoutes } from "./routes/chat-completions/route"
 import { embeddingRoutes } from "./routes/embeddings/route"
@@ -35,3 +38,31 @@ server.route("/v1/embeddings", embeddingRoutes)
 
 // Anthropic compatible endpoints
 server.route("/v1/messages", messageRoutes)
+
+// Internal endpoints for client management
+server.get("/internal/status", async (c) => {
+  const clientCount = await getActiveClientCount()
+  return c.json({
+    pid: process.pid,
+    port: state.port,
+    uptime: process.uptime(),
+    clients: clientCount,
+  })
+})
+
+// Fallback for unknown routes / unsupported methods — log a warning so that
+// unsupported client requests are visible in the proxy logs.
+server.notFound((c) => {
+  consola.warn(
+    `Unsupported request: ${c.req.method} ${c.req.path} (no matching route)`,
+  )
+  return c.json(
+    {
+      error: {
+        type: "invalid_request_error",
+        message: `Unsupported endpoint: ${c.req.method} ${c.req.path}`,
+      },
+    },
+    404,
+  )
+})
