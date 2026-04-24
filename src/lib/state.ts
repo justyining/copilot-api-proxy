@@ -2,31 +2,6 @@ import type { ModelsResponse } from "~/services/copilot/get-models"
 
 export type ClientMode = "claude-code" | "codex"
 
-export interface QuotaInfo {
-  chat?: QuotaSnapshot
-  completions?: QuotaSnapshot
-  premiumInteractions?: QuotaSnapshot
-  rateLimitSession?: RateLimitSnapshot
-  rateLimitWeekly?: RateLimitSnapshot
-  lastUpdated?: number
-}
-
-export interface QuotaSnapshot {
-  entitlement: number
-  overage: number
-  overagePermitted: boolean
-  remaining: number
-  resetAt?: string
-}
-
-export interface RateLimitSnapshot {
-  entitlement: number
-  overage: number
-  overagePermitted: boolean
-  remaining: number
-  resetAt?: string
-}
-
 export interface State {
   githubToken?: string
   copilotToken?: string
@@ -57,9 +32,6 @@ export interface State {
 
   // Token refresh timer
   tokenRefreshTimerId?: ReturnType<typeof setTimeout>
-
-  // Quota tracking from Copilot response headers
-  quotaInfo?: QuotaInfo
 }
 
 export const state: State = {

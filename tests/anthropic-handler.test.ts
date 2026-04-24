@@ -41,6 +41,39 @@ beforeEach(() => {
   state.models = {
     data: [
       {
+        id: "claude-sonnet-4.6",
+        vendor: "anthropic",
+        name: "Claude Sonnet 4.6",
+        version: "4.6",
+        capabilities: {
+          family: "claude-4",
+          limits: { max_output_tokens: 16384 },
+          supports: { max_thinking_budget: 32000 },
+        },
+      },
+      {
+        id: "claude-opus-4.7",
+        vendor: "anthropic",
+        name: "Claude Opus 4.7",
+        version: "4.7",
+        capabilities: {
+          family: "claude-4",
+          limits: { max_output_tokens: 32768 },
+          supports: { max_thinking_budget: 128000 },
+        },
+      },
+      {
+        id: "claude-haiku-4.5",
+        vendor: "anthropic",
+        name: "Claude Haiku 4.5",
+        version: "4.5",
+        capabilities: {
+          family: "claude-4",
+          limits: { max_output_tokens: 8192 },
+          supports: { max_thinking_budget: 16000 },
+        },
+      },
+      {
         id: "claude-sonnet-4",
         vendor: "anthropic",
         name: "Claude Sonnet 4",
@@ -63,7 +96,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("POST /v1/messages – model name mapping", () => {
-  test("maps short alias 'opus' to copilot model", async () => {
+  test("maps short alias 'opus' to latest opus model", async () => {
     let capturedBody: string | null = null
     // @ts-expect-error mock
     globalThis.fetch = mock(async (_url: string, opts: any) => {
@@ -86,10 +119,11 @@ describe("POST /v1/messages – model name mapping", () => {
 
     expect(res.status).toBe(200)
     const body = JSON.parse(capturedBody!)
+    // Should pick the latest opus model from state.models
     expect(body.model).toBe("claude-opus-4.7")
   })
 
-  test("maps short alias 'sonnet' to copilot model", async () => {
+  test("maps short alias 'sonnet' to latest sonnet model", async () => {
     let capturedBody: string | null = null
     // @ts-expect-error mock
     globalThis.fetch = mock(async (_url: string, opts: any) => {
@@ -112,10 +146,11 @@ describe("POST /v1/messages – model name mapping", () => {
 
     expect(res.status).toBe(200)
     const body = JSON.parse(capturedBody!)
+    // Should pick the latest sonnet model from state.models
     expect(body.model).toBe("claude-sonnet-4.6")
   })
 
-  test("maps short alias 'haiku' to copilot model", async () => {
+  test("maps short alias 'haiku' to latest haiku model", async () => {
     let capturedBody: string | null = null
     // @ts-expect-error mock
     globalThis.fetch = mock(async (_url: string, opts: any) => {
@@ -141,7 +176,7 @@ describe("POST /v1/messages – model name mapping", () => {
     expect(body.model).toBe("claude-haiku-4.5")
   })
 
-  test("maps claude-sonnet-4-6 to claude-sonnet-4", async () => {
+  test("maps versioned claude-sonnet-4-6 to base claude-sonnet-4", async () => {
     let capturedBody: string | null = null
     // @ts-expect-error mock
     globalThis.fetch = mock(async (_url: string, opts: any) => {
@@ -167,7 +202,7 @@ describe("POST /v1/messages – model name mapping", () => {
     expect(body.model).toBe("claude-sonnet-4")
   })
 
-  test("maps claude-opus-4-6 to claude-opus-4", async () => {
+  test("maps claude-opus-4-6 to latest opus model", async () => {
     let capturedBody: string | null = null
     // @ts-expect-error mock
     globalThis.fetch = mock(async (_url: string, opts: any) => {
@@ -190,7 +225,8 @@ describe("POST /v1/messages – model name mapping", () => {
 
     expect(res.status).toBe(200)
     const body = JSON.parse(capturedBody!)
-    expect(body.model).toBe("claude-opus-4")
+    // Should map to latest opus model from state.models
+    expect(body.model).toBe("claude-opus-4.7")
   })
 })
 

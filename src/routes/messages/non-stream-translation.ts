@@ -1,3 +1,4 @@
+import { state } from "~/lib/state"
 import {
   type ChatCompletionResponse,
   type ChatCompletionsPayload,
@@ -46,29 +47,71 @@ export function translateToOpenAI(
   }
 }
 
+/**
+ * Find the latest model in a family (e.g. "opus" → highest claude-opus-x.y).
+ * Sorts by version number descending and returns the first match.
+ */
+function findLatestModel(family: string): string | undefined {
+  const models = state.models?.data
+  if (!models) return undefined
+
+  const candidates = models.filter((m) => m.id.includes(`claude-${family}-`))
+  if (candidates.length === 0) return undefined
+
+  // Sort by version descending (higher = newer)
+  candidates.sort((a, b) => {
+    const va = extractVersion(a.id)
+    const vb = extractVersion(b.id)
+    return vb - va
+  })
+
+  return candidates[0].id
+}
+
+function extractVersion(modelId: string): number {
+  // e.g. "claude-sonnet-4.6" → 4.6, "claude-sonnet-4" → 4.0
+  const match = modelId.match(/(\d+(?:\.\d+)?)$/)
+  return match ? Number.parseFloat(match[1]) : 0
+}
+
 export function translateModelName(model: string): string {
-  // Claude Code sends short aliases like "opus", "sonnet", "haiku"
+  // Short aliases → latest in that family
   switch (model) {
     case "opus":
     case "claude-opus": {
-      return "claude-opus-4.7"
+      return findLatestModel("opus") ?? model
     }
     case "sonnet":
     case "claude-sonnet": {
-      return "claude-sonnet-4.6"
+      return findLatestModel("sonnet") ?? model
     }
     case "haiku":
     case "claude-haiku": {
-      return "claude-haiku-4.5"
+      return findLatestModel("haiku") ?? model
     }
     // No default
   }
-  // Subagent requests use a specific model number which Copilot doesn't support
-  if (model.startsWith("claude-sonnet-4-")) {
-    return model.replace(/^claude-sonnet-4-.*/, "claude-sonnet-4")
-  } else if (model.startsWith("claude-opus-")) {
-    return model.replace(/^claude-opus-4-.*/, "claude-opus-4")
+
+  // Exact match in available models — no translation needed
+  if (state.models?.data.some((m) => m.id === model)) {
+    return model
   }
+
+  // Subagent requests use versioned names like claude-sonnet-4-20250514
+  // that Copilot doesn't support — map to the base model in that family
+  const familyMatch = model.match(/^claude-(sonnet|opus|haiku)-/)
+  if (familyMatch) {
+    const family = familyMatch[1]
+    // Try exact family match first (e.g. claude-sonnet-4-6 → claude-sonnet-4)
+    const baseMatch = state.models?.data.find(
+      (m) => m.id === `claude-${family}-4`,
+    )
+    if (baseMatch) return baseMatch.id
+    // Fallback to latest in family
+    const latest = findLatestModel(family)
+    if (latest) return latest
+  }
+
   return model
 }
 

@@ -9,8 +9,6 @@ import {
 } from "~/lib/error"
 import { state } from "~/lib/state"
 
-import { parseQuotaHeaders } from "./parse-quota-headers"
-
 /**
  * Normalize thinking.type per model requirements:
  * - Opus: only "adaptive" (no budget_tokens)
@@ -105,8 +103,6 @@ export async function createMessages(
     headers,
     payload,
   )
-
-  parseQuotaHeaders(response.headers)
 
   if (!response.ok) {
     return handleErrorResponse(response, payload)

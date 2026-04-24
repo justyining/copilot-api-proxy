@@ -10,7 +10,6 @@ import { healthRoute, readyRoute } from "./routes/health/route"
 import { messageRoutes } from "./routes/messages/route"
 import { modelRoutes } from "./routes/models/route"
 import { tokenRoute } from "./routes/token/route"
-import { usageRoute } from "./routes/usage/route"
 
 export const server = new Hono()
 
@@ -27,7 +26,6 @@ server.route("/ready", readyRoute)
 server.route("/chat/completions", completionRoutes)
 server.route("/models", modelRoutes)
 server.route("/embeddings", embeddingRoutes)
-server.route("/usage", usageRoute)
 server.route("/token", tokenRoute)
 
 // Compatibility with tools that expect v1/ prefix

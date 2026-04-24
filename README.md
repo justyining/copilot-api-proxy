@@ -150,7 +150,6 @@ copilot-api start [选项]
 
 | 端点          | 说明                     |
 | ------------- | ------------------------ |
-| `GET /usage`  | Copilot 用量统计         |
 | `GET /token`  | 当前 Copilot token       |
 | `GET /health` | 存活探针                 |
 | `GET /ready`  | 就绪探针（token 已初始化）|
