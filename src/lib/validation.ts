@@ -17,6 +17,10 @@ import type {
 
 import { createInvalidRequestError, createValidationError } from "~/lib/error"
 
+// ---------------------------------------------------------------------------
+// Shared types for validation
+// ---------------------------------------------------------------------------
+
 interface ValidatedAnthropicBase {
   model: string
   messages: Array<AnthropicMessage>
@@ -33,262 +37,237 @@ interface ValidatedAnthropicBase {
   metadata?: AnthropicMessagesPayload["metadata"] | null
 }
 
-/**
- * Shared validation for Anthropic common fields (everything except max_tokens).
- */
-function validateAnthropicCommonFields(p: ValidatedAnthropicBase): void {
-  // Validate stream if provided
-  if (
-    p.stream !== undefined
-    && p.stream !== null
-    && typeof p.stream !== "boolean"
-  ) {
+interface ImageSource {
+  type: string
+  media_type: string
+  data: string
+}
+
+interface ImageBlock {
+  type: "image"
+  source?: ImageSource
+}
+
+interface ToolResultBlock {
+  type: "tool_result"
+  tool_use_id?: string
+  content?: unknown
+  is_error?: boolean
+}
+
+interface ToolUseBlock {
+  type: "tool_use"
+  id?: string
+  name?: string
+  input?: Record<string, unknown>
+}
+
+interface ThinkingBlock {
+  type: "thinking"
+  thinking: string
+}
+
+interface RedactedThinkingBlock {
+  type: "redacted_thinking"
+  data: string
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function assertNumberInRange(
+  value: unknown,
+  field: string,
+  range: { min: number; max: number },
+): void {
+  if (typeof value !== "number") {
+    throw createValidationError(`${field}: must be a number`)
+  }
+  if (value < range.min || value > range.max) {
+    throw createValidationError(
+      `${field}: must be between ${range.min} and ${range.max}`,
+    )
+  }
+}
+
+function assertPositiveInteger(value: unknown, field: string): void {
+  if (typeof value !== "number") {
+    throw createValidationError(`${field}: must be a number`)
+  }
+  if (value <= 0 || !Number.isInteger(value)) {
+    throw createValidationError(`${field}: must be a positive integer`)
+  }
+}
+
+function assertStringArray(value: unknown, field: string): void {
+  if (!Array.isArray(value)) {
+    throw createValidationError(`${field}: must be an array`)
+  }
+  for (const item of value) {
+    if (typeof item !== "string") {
+      throw createValidationError(`${field}: all elements must be strings`)
+    }
+  }
+}
+
+function isPresent<T>(value: T | undefined | null): value is T {
+  return value !== undefined && value !== null
+}
+
+function contentBlockPath(msgIdx: number, blockIdx: number): string {
+  return `messages[${msgIdx}].content[${blockIdx}]`
+}
+
+// ---------------------------------------------------------------------------
+// Anthropic scalar / field validators (small, focused functions)
+// ---------------------------------------------------------------------------
+
+function validateStream(stream: unknown): void {
+  if (isPresent(stream) && typeof stream !== "boolean") {
     throw createValidationError("stream: must be a boolean")
   }
+}
 
-  // Validate temperature if provided
-  if (p.temperature !== undefined && p.temperature !== null) {
-    if (typeof p.temperature !== "number") {
-      throw createValidationError("temperature: must be a number")
+function validateTemperature(temp: unknown, max = 1): void {
+  if (!isPresent(temp)) return
+  assertNumberInRange(temp, "temperature", { min: 0, max })
+}
+
+function validateTopP(topP: unknown): void {
+  if (!isPresent(topP)) return
+  assertNumberInRange(topP, "top_p", { min: 0, max: 1 })
+}
+
+function validateTopK(topK: unknown): void {
+  if (!isPresent(topK)) return
+  if (typeof topK !== "number" || topK <= 0 || !Number.isInteger(topK)) {
+    throw createValidationError("top_k: must be a positive integer")
+  }
+}
+
+function validateSystem(system: unknown): void {
+  if (!isPresent(system)) return
+  if (typeof system === "string") return
+  if (!Array.isArray(system)) {
+    throw createValidationError(
+      "system: must be a string or array of text blocks",
+    )
+  }
+  for (const block of system) {
+    if (
+      !block
+      || typeof block !== "object"
+      || (block as { type: string }).type !== "text"
+    ) {
+      throw createValidationError(
+        "system: array elements must be text blocks with type 'text'",
+      )
     }
-    if (p.temperature < 0 || p.temperature > 1) {
-      throw createValidationError("temperature: must be between 0 and 1")
+    if (typeof (block as { text: unknown }).text !== "string") {
+      throw createValidationError(
+        "system: text blocks must have a 'text' string field",
+      )
     }
   }
+}
 
-  // Validate top_p if provided
-  if (p.top_p !== undefined && p.top_p !== null) {
-    if (typeof p.top_p !== "number") {
-      throw createValidationError("top_p: must be a number")
-    }
-    if (p.top_p < 0 || p.top_p > 1) {
-      throw createValidationError("top_p: must be between 0 and 1")
-    }
+function validateAnthropicTools(tools: unknown): void {
+  if (!isPresent(tools)) return
+  if (!Array.isArray(tools)) {
+    throw createValidationError("tools: must be an array")
   }
-
-  // Validate top_k if provided
-  if (p.top_k !== undefined && p.top_k !== null) {
-    if (typeof p.top_k !== "number") {
-      throw createValidationError("top_k: must be a number")
-    }
-    if (p.top_k <= 0 || !Number.isInteger(p.top_k)) {
-      throw createValidationError("top_k: must be a positive integer")
-    }
+  for (const [i, tool] of tools.entries()) {
+    validateAnthropicTool(tool, i)
   }
+}
 
-  // Validate messages array
+function validateToolChoice(toolChoice: unknown): void {
+  if (!isPresent(toolChoice)) return
+  if (typeof toolChoice !== "object") {
+    throw createValidationError("tool_choice: must be an object")
+  }
+  const tc = toolChoice as { type?: string; name?: unknown }
+  const validTypes = ["auto", "any", "tool", "none"]
+  if (!validTypes.includes(tc.type ?? "")) {
+    throw createValidationError(
+      `tool_choice.type: must be one of ${validTypes.join(", ")}`,
+    )
+  }
+  if (tc.type === "tool" && typeof tc.name !== "string") {
+    throw createValidationError(
+      "tool_choice.name: required when type is 'tool'",
+    )
+  }
+}
+
+function validateThinking(thinking: unknown): void {
+  if (!isPresent(thinking)) return
+  if (typeof thinking !== "object") {
+    throw createValidationError("thinking: must be an object")
+  }
+  const t = thinking as { type?: string; budget_tokens?: unknown }
+  const validTypes = ["enabled", "disabled", "adaptive"]
+  if (!validTypes.includes(t.type ?? "")) {
+    throw createValidationError(
+      `thinking.type: must be one of ${validTypes.join(", ")}`,
+    )
+  }
+  if (
+    isPresent(t.budget_tokens)
+    && (typeof t.budget_tokens !== "number" || t.budget_tokens <= 0)
+  ) {
+    throw createValidationError(
+      "thinking.budget_tokens: must be a positive number",
+    )
+  }
+}
+
+function validateServiceTier(tier: unknown): void {
+  if (!isPresent(tier)) return
+  const validTiers = ["auto", "standard_only"]
+  if (!validTiers.includes(tier as string)) {
+    throw createValidationError(
+      `service_tier: must be one of ${validTiers.join(", ")}`,
+    )
+  }
+}
+
+function validateMetadata(metadata: unknown): void {
+  if (!isPresent(metadata)) return
+  if (typeof metadata !== "object") {
+    throw createValidationError("metadata: must be an object")
+  }
+  const userId = (metadata as { user_id?: unknown }).user_id
+  if (isPresent(userId) && typeof userId !== "string") {
+    throw createValidationError("metadata.user_id: must be a string")
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Anthropic message & content block validators
+// ---------------------------------------------------------------------------
+
+function validateAnthropicCommonFields(p: ValidatedAnthropicBase): void {
+  validateStream(p.stream)
+  validateTemperature(p.temperature)
+  validateTopP(p.top_p)
+  validateTopK(p.top_k)
+
   for (let i = 0; i < p.messages.length; i++) {
     validateAnthropicMessage(p.messages[i], i)
   }
 
-  // Validate system if provided
-  if (p.system !== undefined && p.system !== null) {
-    if (typeof p.system !== "string" && !Array.isArray(p.system)) {
-      throw createValidationError(
-        "system: must be a string or array of text blocks",
-      )
-    }
-    if (Array.isArray(p.system)) {
-      for (const block of p.system) {
-        if (!block || typeof block !== "object" || block.type !== "text") {
-          throw createValidationError(
-            "system: array elements must be text blocks with type 'text'",
-          )
-        }
-        if (typeof block.text !== "string") {
-          throw createValidationError(
-            "system: text blocks must have a 'text' string field",
-          )
-        }
-      }
-    }
-  }
-
-  // Validate stop_sequences if provided
-  if (p.stop_sequences !== undefined && p.stop_sequences !== null) {
-    if (!Array.isArray(p.stop_sequences)) {
-      throw createValidationError("stop_sequences: must be an array")
-    }
-    for (const seq of p.stop_sequences) {
-      if (typeof seq !== "string") {
-        throw createValidationError(
-          "stop_sequences: all elements must be strings",
-        )
-      }
-    }
-  }
-
-  // Validate tools if provided
-  if (p.tools !== undefined && p.tools !== null) {
-    if (!Array.isArray(p.tools)) {
-      throw createValidationError("tools: must be an array")
-    }
-    for (let i = 0; i < p.tools.length; i++) {
-      validateAnthropicTool(p.tools[i], i)
-    }
-  }
-
-  // Validate tool_choice if provided
-  if (p.tool_choice !== undefined && p.tool_choice !== null) {
-    if (typeof p.tool_choice !== "object") {
-      throw createValidationError("tool_choice: must be an object")
-    }
-    const validTypes = ["auto", "any", "tool", "none"]
-    if (!validTypes.includes(p.tool_choice.type)) {
-      throw createValidationError(
-        `tool_choice.type: must be one of ${validTypes.join(", ")}`,
-      )
-    }
-    if (
-      p.tool_choice.type === "tool"
-      && typeof p.tool_choice.name !== "string"
-    ) {
-      throw createValidationError(
-        "tool_choice.name: required when type is 'tool'",
-      )
-    }
-  }
-
-  // Validate thinking if provided
-  if (p.thinking !== undefined && p.thinking !== null) {
-    if (typeof p.thinking !== "object") {
-      throw createValidationError("thinking: must be an object")
-    }
-    const validThinkingTypes = ["enabled", "adaptive"]
-    if (!validThinkingTypes.includes(p.thinking.type)) {
-      throw createValidationError(
-        `thinking.type: must be one of ${validThinkingTypes.join(", ")}`,
-      )
-    }
-    if (
-      p.thinking.budget_tokens !== undefined
-      && (typeof p.thinking.budget_tokens !== "number"
-        || p.thinking.budget_tokens <= 0)
-    ) {
-      throw createValidationError(
-        "thinking.budget_tokens: must be a positive number",
-      )
-    }
-  }
-
-  // Validate service_tier if provided
-  if (p.service_tier !== undefined && p.service_tier !== null) {
-    const validTiers = ["auto", "standard_only"]
-    if (!validTiers.includes(p.service_tier)) {
-      throw createValidationError(
-        `service_tier: must be one of ${validTiers.join(", ")}`,
-      )
-    }
-  }
-
-  // Validate metadata if provided
-  if (p.metadata !== undefined && p.metadata !== null) {
-    if (typeof p.metadata !== "object") {
-      throw createValidationError("metadata: must be an object")
-    }
-    if (
-      p.metadata.user_id !== undefined
-      && typeof p.metadata.user_id !== "string"
-    ) {
-      throw createValidationError("metadata.user_id: must be a string")
-    }
-  }
+  validateSystem(p.system)
+  if (isPresent(p.stop_sequences))
+    assertStringArray(p.stop_sequences, "stop_sequences")
+  validateAnthropicTools(p.tools)
+  validateToolChoice(p.tool_choice)
+  validateThinking(p.thinking)
+  validateServiceTier(p.service_tier)
+  validateMetadata(p.metadata)
 }
 
-/**
- * Validate Anthropic Messages API payload
- */
-export function validateAnthropicPayload(
-  payload: unknown,
-): asserts payload is AnthropicMessagesPayload {
-  if (!payload || typeof payload !== "object") {
-    throw createInvalidRequestError("Request body must be a valid JSON object")
-  }
-
-  const p = payload as Partial<AnthropicMessagesPayload>
-
-  if (!p.model || typeof p.model !== "string") {
-    throw createInvalidRequestError(
-      "model: required field missing or invalid type",
-    )
-  }
-
-  if (!p.messages || !Array.isArray(p.messages)) {
-    throw createInvalidRequestError(
-      "messages: required field missing or must be an array",
-    )
-  }
-
-  if (p.messages.length === 0) {
-    throw createInvalidRequestError("messages: array must not be empty")
-  }
-
-  // max_tokens is required
-  if (typeof p.max_tokens !== "number") {
-    throw createInvalidRequestError(
-      "max_tokens: required field missing or must be a number",
-    )
-  }
-  if (p.max_tokens <= 0) {
-    throw createValidationError("max_tokens: must be a positive integer")
-  }
-  if (!Number.isInteger(p.max_tokens)) {
-    throw createValidationError("max_tokens: must be an integer")
-  }
-
-  validateAnthropicCommonFields(p as ValidatedAnthropicBase)
-}
-
-/**
- * Validate Anthropic Messages API payload for count_tokens endpoint
- * Same as validateAnthropicPayload but doesn't require max_tokens
- */
-export function validateAnthropicCountTokensPayload(
-  payload: unknown,
-): asserts payload is Omit<AnthropicMessagesPayload, "max_tokens"> & {
-  max_tokens?: number
-} {
-  if (!payload || typeof payload !== "object") {
-    throw createInvalidRequestError("Request body must be a valid JSON object")
-  }
-
-  const p = payload as Partial<AnthropicMessagesPayload>
-
-  if (!p.model || typeof p.model !== "string") {
-    throw createInvalidRequestError(
-      "model: required field missing or invalid type",
-    )
-  }
-
-  if (!p.messages || !Array.isArray(p.messages)) {
-    throw createInvalidRequestError(
-      "messages: required field missing or must be an array",
-    )
-  }
-
-  if (p.messages.length === 0) {
-    throw createInvalidRequestError("messages: array must not be empty")
-  }
-
-  // max_tokens is optional for count_tokens
-  if (p.max_tokens !== undefined && p.max_tokens !== null) {
-    if (typeof p.max_tokens !== "number") {
-      throw createValidationError("max_tokens: must be a number")
-    }
-    if (p.max_tokens <= 0) {
-      throw createValidationError("max_tokens: must be a positive integer")
-    }
-    if (!Number.isInteger(p.max_tokens)) {
-      throw createValidationError("max_tokens: must be an integer")
-    }
-  }
-
-  validateAnthropicCommonFields(p as ValidatedAnthropicBase)
-}
-
-/**
- * Validate a single Anthropic message
- */
 function validateAnthropicMessage(
   message: unknown,
   index: number,
@@ -299,53 +278,44 @@ function validateAnthropicMessage(
 
   const m = message as Partial<AnthropicMessage>
 
-  // Validate role
-  const validRoles = ["user", "assistant"]
+  const validRoles = ["user", "assistant", "tool"]
   if (!m.role || !validRoles.includes(m.role)) {
     throw createValidationError(
       `messages[${index}].role: must be one of ${validRoles.join(", ")}`,
     )
   }
 
-  // Validate content
-  if (m.content === undefined || m.content === null) {
+  if (!isPresent(m.content)) {
     throw createValidationError(
       `messages[${index}].content: required field missing`,
     )
   }
-
   if (typeof m.content !== "string" && !Array.isArray(m.content)) {
     throw createValidationError(
       `messages[${index}].content: must be a string or array`,
     )
   }
 
-  // Validate content blocks if array
   if (Array.isArray(m.content)) {
     if (m.content.length === 0) {
       throw createValidationError(
         `messages[${index}].content: array must not be empty`,
       )
     }
-
     for (let i = 0; i < m.content.length; i++) {
-      validateAnthropicContentBlock(m.content[i], index, i, m.role)
+      validateAnthropicContentBlock(m.content[i], index, i)
     }
   }
 }
 
-/**
- * Validate Anthropic content block
- */
 function validateAnthropicContentBlock(
   block: unknown,
   messageIndex: number,
   blockIndex: number,
-  role?: string,
 ): void {
   if (!block || typeof block !== "object") {
     throw createValidationError(
-      `messages[${messageIndex}].content[${blockIndex}]: must be an object`,
+      `${contentBlockPath(messageIndex, blockIndex)}: must be an object`,
     )
   }
 
@@ -353,127 +323,119 @@ function validateAnthropicContentBlock(
 
   if (!b.type || typeof b.type !== "string") {
     throw createValidationError(
-      `messages[${messageIndex}].content[${blockIndex}].type: required field missing`,
+      `${contentBlockPath(messageIndex, blockIndex)}.type: required field missing`,
     )
   }
 
-  // Validate based on block type
+  const path = contentBlockPath(messageIndex, blockIndex)
+
   switch (b.type) {
     case "text": {
-      if (typeof b.text !== "string") {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].text: must be a string`,
-        )
-      }
-
+      validateTextBlock(b, path)
       break
     }
     case "image": {
-      const imgBlock = b as any
-      if (!imgBlock.source || typeof imgBlock.source !== "object") {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].source: required for image blocks`,
-        )
-      }
-      if (imgBlock.source.type !== "base64") {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].source.type: must be 'base64'`,
-        )
-      }
-      const validMediaTypes = [
-        "image/jpeg",
-        "image/png",
-        "image/gif",
-        "image/webp",
-      ]
-      if (!validMediaTypes.includes(imgBlock.source.media_type)) {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].source.media_type: must be one of ${validMediaTypes.join(", ")}`,
-        )
-      }
-      if (typeof imgBlock.source.data !== "string") {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].source.data: must be a base64 string`,
-        )
-      }
-
+      validateImageBlock(block as ImageBlock, path)
       break
     }
     case "tool_result": {
-      const toolBlock = b as any
-      if (typeof toolBlock.tool_use_id !== "string") {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].tool_use_id: required for tool_result blocks`,
-        )
-      }
-      if (toolBlock.content === undefined) {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].content: required for tool_result blocks`,
-        )
-      }
-      if (
-        toolBlock.is_error !== undefined
-        && typeof toolBlock.is_error !== "boolean"
-      ) {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].is_error: must be a boolean`,
-        )
-      }
-
+      validateToolResultBlock(block as ToolResultBlock, path)
       break
     }
     case "tool_use": {
-      // Tool use blocks are typically in assistant messages
-      const toolBlock = b as any
-      if (typeof toolBlock.id !== "string") {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].id: required for tool_use blocks`,
-        )
-      }
-      if (typeof toolBlock.name !== "string") {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].name: required for tool_use blocks`,
-        )
-      }
-      if (!toolBlock.input || typeof toolBlock.input !== "object") {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].input: must be an object`,
-        )
-      }
-
+      validateToolUseBlock(block as ToolUseBlock, path)
       break
     }
     case "thinking": {
-      const thinkingBlock = b as any
-      if (typeof thinkingBlock.thinking !== "string") {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].thinking: must be a string`,
-        )
-      }
-
+      validateThinkingBlock(block as ThinkingBlock, path)
       break
     }
     case "redacted_thinking": {
-      const redactedBlock = b as any
-      if (typeof redactedBlock.data !== "string") {
-        throw createValidationError(
-          `messages[${messageIndex}].content[${blockIndex}].data: must be a string`,
-        )
-      }
-
+      validateRedactedThinkingBlock(block as RedactedThinkingBlock, path)
       break
     }
     default: {
       throw createValidationError(
-        `messages[${messageIndex}].content[${blockIndex}].type: unsupported block type '${b.type}'`,
+        `${path}.type: unsupported block type '${b.type as string}'`,
       )
     }
   }
 }
 
-/**
- * Validate Anthropic tool definition
- */
+function validateTextBlock(
+  b: Partial<AnthropicUserContentBlock>,
+  path: string,
+): void {
+  if (typeof b.text !== "string") {
+    throw createValidationError(`${path}.text: must be a string`)
+  }
+}
+
+function validateImageBlock(b: ImageBlock, path: string): void {
+  if (!b.source || typeof b.source !== "object") {
+    throw createValidationError(`${path}.source: required for image blocks`)
+  }
+  if (b.source.type !== "base64") {
+    throw createValidationError(`${path}.source.type: must be 'base64'`)
+  }
+  const validMediaTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+  if (!validMediaTypes.includes(b.source.media_type)) {
+    throw createValidationError(
+      `${path}.source.media_type: must be one of ${validMediaTypes.join(", ")}`,
+    )
+  }
+  if (typeof b.source.data !== "string") {
+    throw createValidationError(`${path}.source.data: must be a base64 string`)
+  }
+}
+
+function validateToolResultBlock(b: ToolResultBlock, path: string): void {
+  if (typeof b.tool_use_id !== "string") {
+    throw createValidationError(
+      `${path}.tool_use_id: required for tool_result blocks`,
+    )
+  }
+  if (b.content === undefined) {
+    throw createValidationError(
+      `${path}.content: required for tool_result blocks`,
+    )
+  }
+  if (b.is_error !== undefined && typeof b.is_error !== "boolean") {
+    throw createValidationError(`${path}.is_error: must be a boolean`)
+  }
+}
+
+function validateToolUseBlock(b: ToolUseBlock, path: string): void {
+  if (typeof b.id !== "string") {
+    throw createValidationError(`${path}.id: required for tool_use blocks`)
+  }
+  if (typeof b.name !== "string") {
+    throw createValidationError(`${path}.name: required for tool_use blocks`)
+  }
+  if (!b.input || typeof b.input !== "object") {
+    throw createValidationError(`${path}.input: must be an object`)
+  }
+}
+
+function validateThinkingBlock(b: ThinkingBlock, path: string): void {
+  if (typeof b.thinking !== "string") {
+    throw createValidationError(`${path}.thinking: must be a string`)
+  }
+}
+
+function validateRedactedThinkingBlock(
+  b: RedactedThinkingBlock,
+  path: string,
+): void {
+  if (typeof b.data !== "string") {
+    throw createValidationError(`${path}.data: must be a string`)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Anthropic tool definition validator
+// ---------------------------------------------------------------------------
+
 function validateAnthropicTool(
   tool: unknown,
   index: number,
@@ -487,11 +449,9 @@ function validateAnthropicTool(
   if (!t.name || typeof t.name !== "string") {
     throw createValidationError(`tools[${index}].name: required field missing`)
   }
-
   if (t.description !== undefined && typeof t.description !== "string") {
     throw createValidationError(`tools[${index}].description: must be a string`)
   }
-
   if (!t.input_schema || typeof t.input_schema !== "object") {
     throw createValidationError(
       `tools[${index}].input_schema: required and must be an object (JSON Schema)`,
@@ -499,9 +459,135 @@ function validateAnthropicTool(
   }
 }
 
-/**
- * Validate OpenAI Chat Completions payload
- */
+// ---------------------------------------------------------------------------
+// Anthropic payload validators (public API)
+// ---------------------------------------------------------------------------
+
+function validateAnthropicBase(
+  payload: unknown,
+): asserts payload is Partial<AnthropicMessagesPayload> {
+  if (!payload || typeof payload !== "object") {
+    throw createInvalidRequestError("Request body must be a valid JSON object")
+  }
+
+  const p = payload as Partial<AnthropicMessagesPayload>
+
+  if (!p.model || typeof p.model !== "string") {
+    throw createInvalidRequestError(
+      "model: required field missing or invalid type",
+    )
+  }
+  if (!p.messages || !Array.isArray(p.messages)) {
+    throw createInvalidRequestError(
+      "messages: required field missing or must be an array",
+    )
+  }
+  if (p.messages.length === 0) {
+    throw createInvalidRequestError("messages: array must not be empty")
+  }
+
+  return p as never
+}
+
+export function validateAnthropicPayload(
+  payload: unknown,
+): asserts payload is AnthropicMessagesPayload {
+  validateAnthropicBase(payload)
+
+  const p = payload
+
+  if (typeof p.max_tokens !== "number") {
+    throw createInvalidRequestError(
+      "max_tokens: required field missing or must be a number",
+    )
+  }
+  assertPositiveInteger(p.max_tokens, "max_tokens")
+
+  validateAnthropicCommonFields(p as ValidatedAnthropicBase)
+}
+
+export function validateAnthropicCountTokensPayload(
+  payload: unknown,
+): asserts payload is Omit<AnthropicMessagesPayload, "max_tokens"> & {
+  max_tokens?: number
+} {
+  validateAnthropicBase(payload)
+
+  const p = payload
+
+  // max_tokens is optional for count_tokens
+  if (isPresent(p.max_tokens)) {
+    assertPositiveInteger(p.max_tokens, "max_tokens")
+  }
+
+  validateAnthropicCommonFields(p as ValidatedAnthropicBase)
+}
+
+// ---------------------------------------------------------------------------
+// OpenAI Chat Completions validators
+// ---------------------------------------------------------------------------
+
+function validateChatNumericParams(p: Partial<ChatCompletionsPayload>): void {
+  if (isPresent(p.temperature))
+    assertNumberInRange(p.temperature, "temperature", { min: 0, max: 2 })
+  if (isPresent(p.top_p))
+    assertNumberInRange(p.top_p, "top_p", { min: 0, max: 1 })
+  if (isPresent(p.max_tokens)) assertPositiveInteger(p.max_tokens, "max_tokens")
+  if (isPresent(p.frequency_penalty)) {
+    assertNumberInRange(p.frequency_penalty, "frequency_penalty", {
+      min: -2,
+      max: 2,
+    })
+  }
+  if (isPresent(p.presence_penalty)) {
+    assertNumberInRange(p.presence_penalty, "presence_penalty", {
+      min: -2,
+      max: 2,
+    })
+  }
+  if (
+    isPresent(p.n)
+    && (typeof p.n !== "number" || !Number.isInteger(p.n) || p.n < 1)
+  ) {
+    throw createValidationError("n: must be a positive integer")
+  }
+}
+
+function validateChatToolChoice(toolChoice: unknown): void {
+  if (!isPresent(toolChoice)) return
+
+  if (typeof toolChoice === "string") {
+    const valid = ["none", "auto", "required"]
+    if (!valid.includes(toolChoice)) {
+      throw createValidationError(
+        `tool_choice: must be one of ${valid.join(", ")} or an object`,
+      )
+    }
+    return
+  }
+
+  if (typeof toolChoice === "object") {
+    const tc = toolChoice as { type?: string; function?: { name?: unknown } }
+    if (tc.type !== "function") {
+      throw createValidationError("tool_choice.type: must be 'function'")
+    }
+    if (!tc.function || typeof tc.function.name !== "string") {
+      throw createValidationError(
+        "tool_choice.function.name: required when specifying a function",
+      )
+    }
+    return
+  }
+
+  throw createValidationError("tool_choice: must be a string or object")
+}
+
+function validateChatStop(stop: unknown): void {
+  if (!isPresent(stop)) return
+  if (typeof stop === "string") return
+  assertStringArray(stop, "stop")
+}
+
 export function validateChatCompletionsPayload(
   payload: unknown,
 ): asserts payload is ChatCompletionsPayload {
@@ -511,84 +597,28 @@ export function validateChatCompletionsPayload(
 
   const p = payload as Partial<ChatCompletionsPayload>
 
-  // Required fields
   if (!p.model || typeof p.model !== "string") {
     throw createInvalidRequestError(
       "model: required field missing or invalid type",
     )
   }
-
   if (!p.messages || !Array.isArray(p.messages)) {
     throw createInvalidRequestError(
       "messages: required field missing or must be an array",
     )
   }
-
   if (p.messages.length === 0) {
     throw createInvalidRequestError("messages: array must not be empty")
   }
 
-  // Validate optional numeric parameters
-  if (p.temperature !== undefined && p.temperature !== null) {
-    if (typeof p.temperature !== "number") {
-      throw createValidationError("temperature: must be a number")
-    }
-    if (p.temperature < 0 || p.temperature > 2) {
-      throw createValidationError("temperature: must be between 0 and 2")
-    }
-  }
+  validateChatNumericParams(p)
 
-  if (p.top_p !== undefined && p.top_p !== null) {
-    if (typeof p.top_p !== "number") {
-      throw createValidationError("top_p: must be a number")
-    }
-    if (p.top_p < 0 || p.top_p > 1) {
-      throw createValidationError("top_p: must be between 0 and 1")
-    }
-  }
-
-  if (p.max_tokens !== undefined && p.max_tokens !== null) {
-    if (typeof p.max_tokens !== "number") {
-      throw createValidationError("max_tokens: must be a number")
-    }
-    if (p.max_tokens <= 0 || !Number.isInteger(p.max_tokens)) {
-      throw createValidationError("max_tokens: must be a positive integer")
-    }
-  }
-
-  if (p.frequency_penalty !== undefined && p.frequency_penalty !== null) {
-    if (typeof p.frequency_penalty !== "number") {
-      throw createValidationError("frequency_penalty: must be a number")
-    }
-    if (p.frequency_penalty < -2 || p.frequency_penalty > 2) {
-      throw createValidationError("frequency_penalty: must be between -2 and 2")
-    }
-  }
-
-  if (p.presence_penalty !== undefined && p.presence_penalty !== null) {
-    if (typeof p.presence_penalty !== "number") {
-      throw createValidationError("presence_penalty: must be a number")
-    }
-    if (p.presence_penalty < -2 || p.presence_penalty > 2) {
-      throw createValidationError("presence_penalty: must be between -2 and 2")
-    }
-  }
-
-  if (
-    p.n !== undefined
-    && p.n !== null
-    && (typeof p.n !== "number" || !Number.isInteger(p.n) || p.n < 1)
-  ) {
-    throw createValidationError("n: must be a positive integer")
-  }
-
-  // Validate messages
   for (let i = 0; i < p.messages.length; i++) {
     validateChatMessage(p.messages[i], i)
   }
 
-  // Validate tools if provided
-  if (p.tools !== undefined && p.tools !== null) {
+  // Validate tools
+  if (isPresent(p.tools)) {
     if (!Array.isArray(p.tools)) {
       throw createValidationError("tools: must be an array")
     }
@@ -597,61 +627,11 @@ export function validateChatCompletionsPayload(
     }
   }
 
-  // Validate tool_choice if provided
-  if (p.tool_choice !== undefined && p.tool_choice !== null) {
-    if (typeof p.tool_choice === "string") {
-      const validChoices = ["none", "auto", "required"]
-      if (!validChoices.includes(p.tool_choice)) {
-        throw createValidationError(
-          `tool_choice: must be one of ${validChoices.join(", ")} or an object`,
-        )
-      }
-    } else if (typeof p.tool_choice === "object") {
-      if (p.tool_choice.type !== "function") {
-        throw createValidationError("tool_choice.type: must be 'function'")
-      }
-      if (
-        !p.tool_choice.function
-        || typeof p.tool_choice.function.name !== "string"
-      ) {
-        throw createValidationError(
-          "tool_choice.function.name: required when specifying a function",
-        )
-      }
-    } else {
-      throw createValidationError("tool_choice: must be a string or object")
-    }
-  }
-
-  // Validate stop sequences
-  if (p.stop !== undefined && p.stop !== null) {
-    if (typeof p.stop !== "string" && !Array.isArray(p.stop)) {
-      throw createValidationError("stop: must be a string or array of strings")
-    }
-    if (Array.isArray(p.stop)) {
-      for (const seq of p.stop) {
-        if (typeof seq !== "string") {
-          throw createValidationError(
-            "stop: all array elements must be strings",
-          )
-        }
-      }
-    }
-  }
-
-  // Validate stream
-  if (
-    p.stream !== undefined
-    && p.stream !== null
-    && typeof p.stream !== "boolean"
-  ) {
-    throw createValidationError("stream: must be a boolean")
-  }
+  validateChatToolChoice(p.tool_choice)
+  validateChatStop(p.stop)
+  validateStream(p.stream)
 }
 
-/**
- * Validate a single chat message
- */
 function validateChatMessage(
   message: unknown,
   index: number,
@@ -662,7 +642,6 @@ function validateChatMessage(
 
   const m = message as Partial<Message>
 
-  // Validate role
   const validRoles = ["user", "assistant", "system", "tool", "developer"]
   if (!m.role || !validRoles.includes(m.role)) {
     throw createValidationError(
@@ -670,101 +649,126 @@ function validateChatMessage(
     )
   }
 
-  // Content validation depends on role
   if (m.role === "tool" && typeof m.tool_call_id !== "string") {
     throw createValidationError(
       `messages[${index}].tool_call_id: required for tool messages`,
     )
   }
 
-  // Validate content if present
-  if (m.content !== undefined && m.content !== null) {
-    if (typeof m.content !== "string" && !Array.isArray(m.content)) {
-      throw createValidationError(
-        `messages[${index}].content: must be a string, array, or null`,
-      )
-    }
+  validateChatContent(m.content, index)
+  validateChatToolCalls(m.tool_calls, index)
+}
 
-    if (Array.isArray(m.content)) {
-      for (let i = 0; i < m.content.length; i++) {
-        const part = m.content[i]
-        if (!part || typeof part !== "object") {
-          throw createValidationError(
-            `messages[${index}].content[${i}]: must be an object`,
-          )
-        }
-
-        if (part.type === "text") {
-          if (typeof part.text !== "string") {
-            throw createValidationError(
-              `messages[${index}].content[${i}].text: must be a string`,
-            )
-          }
-        } else if (part.type === "image_url") {
-          if (!part.image_url || typeof part.image_url.url !== "string") {
-            throw createValidationError(
-              `messages[${index}].content[${i}].image_url.url: required`,
-            )
-          }
-          if (part.image_url.detail !== undefined) {
-            const validDetails = ["low", "high", "auto"]
-            if (!validDetails.includes(part.image_url.detail)) {
-              throw createValidationError(
-                `messages[${index}].content[${i}].image_url.detail: must be one of ${validDetails.join(", ")}`,
-              )
-            }
-          }
-        } else {
-          throw createValidationError(
-            `messages[${index}].content[${i}].type: must be 'text' or 'image_url'`,
-          )
-        }
-      }
-    }
+function validateChatContent(content: unknown, msgIndex: number): void {
+  if (!isPresent(content)) return
+  if (typeof content === "string") return
+  if (!Array.isArray(content)) {
+    throw createValidationError(
+      `messages[${msgIndex}].content: must be a string, array, or null`,
+    )
   }
 
-  // Validate tool_calls if present
-  if (m.tool_calls !== undefined && m.tool_calls !== null) {
-    if (!Array.isArray(m.tool_calls)) {
+  for (const [i, part] of content.entries()) {
+    if (!part || typeof part !== "object") {
       throw createValidationError(
-        `messages[${index}].tool_calls: must be an array`,
+        `messages[${msgIndex}].content[${i}]: must be an object`,
       )
     }
 
-    for (let i = 0; i < m.tool_calls.length; i++) {
-      const toolCall = m.tool_calls[i]
-      if (!toolCall || typeof toolCall !== "object") {
-        throw createValidationError(
-          `messages[${index}].tool_calls[${i}]: must be an object`,
-        )
-      }
-      if (typeof toolCall.id !== "string") {
-        throw createValidationError(
-          `messages[${index}].tool_calls[${i}].id: required`,
-        )
-      }
-      if (toolCall.type !== "function") {
-        throw createValidationError(
-          `messages[${index}].tool_calls[${i}].type: must be 'function'`,
-        )
-      }
-      if (!toolCall.function || typeof toolCall.function.name !== "string") {
-        throw createValidationError(
-          `messages[${index}].tool_calls[${i}].function.name: required`,
-        )
-      }
-      if (typeof toolCall.function.arguments !== "string") {
-        throw createValidationError(
-          `messages[${index}].tool_calls[${i}].function.arguments: must be a JSON string`,
-        )
-      }
+    const p = part as {
+      type?: string
+      text?: unknown
+      image_url?: { url?: unknown; detail?: string }
+    }
+
+    if (p.type === "text") {
+      validateChatTextPart(p, msgIndex, i)
+    } else if (p.type === "image_url") {
+      validateChatImagePart(p, msgIndex, i)
+    } else {
+      throw createValidationError(
+        `messages[${msgIndex}].content[${i}].type: must be 'text' or 'image_url'`,
+      )
     }
   }
 }
 
-/**
- * Validate a chat tool definition
- */
+function validateChatTextPart(
+  part: { text?: unknown },
+  msgIndex: number,
+  partIndex: number,
+): void {
+  if (typeof part.text !== "string") {
+    throw createValidationError(
+      `messages[${msgIndex}].content[${partIndex}].text: must be a string`,
+    )
+  }
+}
+
+function validateChatImagePart(
+  part: { image_url?: { url?: unknown; detail?: string } },
+  msgIndex: number,
+  partIndex: number,
+): void {
+  if (!part.image_url || typeof part.image_url.url !== "string") {
+    throw createValidationError(
+      `messages[${msgIndex}].content[${partIndex}].image_url.url: required`,
+    )
+  }
+  if (part.image_url.detail !== undefined) {
+    const valid = ["low", "high", "auto"]
+    if (!valid.includes(part.image_url.detail)) {
+      throw createValidationError(
+        `messages[${msgIndex}].content[${partIndex}].image_url.detail: must be one of ${valid.join(", ")}`,
+      )
+    }
+  }
+}
+
+function validateChatToolCalls(toolCalls: unknown, msgIndex: number): void {
+  if (!isPresent(toolCalls)) return
+  if (!Array.isArray(toolCalls)) {
+    throw createValidationError(
+      `messages[${msgIndex}].tool_calls: must be an array`,
+    )
+  }
+
+  for (const [i, toolCall] of toolCalls.entries()) {
+    const tc = toolCall as
+      | {
+          id?: unknown
+          type?: string
+          function?: { name?: unknown; arguments?: unknown }
+        }
+      | undefined
+    if (!tc || typeof tc !== "object") {
+      throw createValidationError(
+        `messages[${msgIndex}].tool_calls[${i}]: must be an object`,
+      )
+    }
+    if (typeof tc.id !== "string") {
+      throw createValidationError(
+        `messages[${msgIndex}].tool_calls[${i}].id: required`,
+      )
+    }
+    if (tc.type !== "function") {
+      throw createValidationError(
+        `messages[${msgIndex}].tool_calls[${i}].type: must be 'function'`,
+      )
+    }
+    if (!tc.function || typeof tc.function.name !== "string") {
+      throw createValidationError(
+        `messages[${msgIndex}].tool_calls[${i}].function.name: required`,
+      )
+    }
+    if (typeof tc.function.arguments !== "string") {
+      throw createValidationError(
+        `messages[${msgIndex}].tool_calls[${i}].function.arguments: must be a JSON string`,
+      )
+    }
+  }
+}
+
 function validateChatTool(tool: unknown, index: number): asserts tool is Tool {
   if (!tool || typeof tool !== "object") {
     throw createValidationError(`tools[${index}]: must be an object`)
@@ -775,27 +779,22 @@ function validateChatTool(tool: unknown, index: number): asserts tool is Tool {
   if (t.type !== "function") {
     throw createValidationError(`tools[${index}].type: must be 'function'`)
   }
-
   if (!t.function || typeof t.function !== "object") {
     throw createValidationError(
       `tools[${index}].function: required and must be an object`,
     )
   }
-
   if (typeof t.function.name !== "string") {
     throw createValidationError(`tools[${index}].function.name: required`)
   }
-
-  if (
-    t.function.description !== undefined
-    && typeof t.function.description !== "string"
-  ) {
+  const desc = (t.function as { description?: unknown }).description
+  if (desc !== undefined && typeof desc !== "string") {
     throw createValidationError(
       `tools[${index}].function.description: must be a string`,
     )
   }
-
-  if (!t.function.parameters || typeof t.function.parameters !== "object") {
+  const params = (t.function as { parameters?: unknown }).parameters
+  if (!params || typeof params !== "object") {
     throw createValidationError(
       `tools[${index}].function.parameters: required and must be an object (JSON Schema)`,
     )
