@@ -16,3 +16,10 @@ dist/
 
 # copilot data
 copilot-data/
+
+# local agent config
+.claude/
+
+# mitmproxy captures
+*.flow
+*.flows

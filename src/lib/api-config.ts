@@ -58,6 +58,8 @@ export function copilotHeaders(
   const { state, vision, initiator } = options
   const modeConfig = getModeConfig(state.clientMode)
 
+  const requestId = randomUUID()
+
   const headers: Record<string, string> = {
     Authorization: `Bearer ${state.copilotToken}`,
     "content-type": "application/json",
@@ -70,12 +72,12 @@ export function copilotHeaders(
     "vscode-abexpcontext": AB_EXPERIMENT_CONTEXT,
     "vscode-machineid": state.machineId ?? "",
     "vscode-sessionid": state.sessionId ?? "",
-    "x-agent-task-id": randomUUID(),
+    "x-agent-task-id": requestId,
     "x-copilot-client-exp-assignment-context": AB_EXPERIMENT_CONTEXT,
     "x-github-api-version": API_VERSION,
     "x-interaction-id": state.interactionId ?? randomUUID(),
     "x-interaction-type": options.interactionType ?? "conversation-panel",
-    "x-request-id": randomUUID(),
+    "x-request-id": requestId,
     "x-vscode-user-agent-library-version": "electron-fetch",
     "sec-fetch-site": "none",
     "sec-fetch-mode": "no-cors",

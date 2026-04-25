@@ -333,6 +333,18 @@ async function readErrorBody(
   }
 }
 
+function hasThinkingBlocks(payload: Record<string, unknown>): boolean {
+  const messages = payload.messages as Array<{ content?: unknown }> | undefined
+  if (!Array.isArray(messages)) return false
+  return messages.some(
+    (m) =>
+      Array.isArray(m.content)
+      && (m.content as Array<{ type?: string }>).some(
+        (b) => b.type === "thinking" || b.type === "redacted_thinking",
+      ),
+  )
+}
+
 function stripThinkingBlocks(
   payload: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -363,6 +375,16 @@ function tryPatchFromError(
     && (message.includes("does not match")
       || message.includes("Invalid signature"))
   ) {
+    const hadThinking =
+      hasThinkingBlocks(payload)
+      || payload.thinking !== undefined
+      || payload.context_management !== undefined
+    if (!hadThinking) {
+      consola.warn(
+        "Copilot rejected thinking signature but payload has no thinking blocks — giving up to avoid retry loop.",
+      )
+      return null
+    }
     const patched = stripThinkingBlocks({ ...payload })
     delete patched.thinking
     delete patched.context_management

@@ -11,39 +11,63 @@
 
 ## 快速上手
 
+### 全局安装（推荐）
+
+```bash
+npm install -g copilot-api-proxy
+```
+
+直接运行：
+
+```bash
+claude-copilot
+```
+
+首次使用会自动引导 GitHub 授权流程，之后每次运行会自动启动后台代理服务并启动 Claude Code。代理服务使用随机端口，无需担心端口冲突。
+
+多个 `claude-copilot` 实例共享同一个后台代理服务，当所有实例关闭后服务自动停止。
+
 ### 从源码运行
 
 ```bash
 git clone https://github.com/justyining/copilot-api-proxy.git
-cd copilot-api
+cd copilot-api-proxy
 bun install
 ```
 
-首次使用需先授权：
+首次使用先登录：
 
 ```bash
-bun run start auth
+bun run auth
 ```
 
-按提示打开 https://github.com/login/device 并输入设备码完成授权。
-
-然后启动服务：
+启动代理服务（前台，端口 4141）：
 
 ```bash
-bun run start start
-# 或开发模式（自动重启）
-bun run dev start
+bun run start
+```
+
+开发模式（改代码自动重启）：
+
+```bash
+bun run dev
+```
+
+验证服务是否正常：
+
+```bash
+curl http://localhost:4141/v1/models
 ```
 
 ### Docker 部署
 
 ```bash
-docker build -t copilot-api .
+docker build -t copilot-api-proxy .
 mkdir -p copilot-data
 docker run -p 4141:4141 \
   -e GH_TOKEN=your_github_token \
-  -v $(pwd)/copilot-data:/home/copilot/.local/share/copilot-api \
-  copilot-api
+  -v $(pwd)/copilot-data:/home/copilot/.local/share/copilot-api-proxy \
+  copilot-api-proxy
 ```
 
 或 docker-compose：
@@ -53,32 +77,31 @@ echo 'GH_TOKEN=your_github_token' > .env
 docker compose up -d
 ```
 
-### 验证
+## 命令行
+
+### claude-copilot
+
+启动后台代理服务并运行 Claude Code：
 
 ```bash
-curl http://localhost:4141/v1/models
+claude-copilot          # 首次运行会自动引导登录
 ```
 
-返回模型列表即表示服务正常。
+首次运行时，如果未登录会自动执行 GitHub 授权流程。登录完成后，会自动启动后台代理服务（随机端口）并 exec 启动 `claude`。
 
-## 配合 Claude Code 使用
+当所有使用该代理服务的 `claude-copilot` 实例关闭后，后台服务自动停止。
 
-### 方式一：一键 wrapper 脚本（推荐）
+### 其他命令
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/justyining/copilot-api-proxy/master/install.sh | bash
-```
+- `claude-copilot auth` — 执行 GitHub 授权流程
+- `claude-copilot stop` — 强制停止后台代理服务
+- `claude-copilot start [选项]` — 前台启动代理服务（开发用，端口默认 4141）
+- `claude-copilot check-usage` — 查看当前 Copilot 用量和配额
+- `claude-copilot debug` — 输出诊断信息（`--json` 输出 JSON 格式）
 
-安装后直接运行：
+### 手动配置 settings.json
 
-```bash
-claude-copilot          # 等同于 claude，但自动连接本地 copilot-api
-claude-copilot --chat   # 透传所有 claude 原始参数
-```
-
-### 方式二：手动配置 settings.json
-
-在项目根目录创建 `.claude/settings.json`：
+如需直接使用代理而不通过 `claude-copilot` 命令（如 Docker 部署或开发模式），可在项目根目录创建 `.claude/settings.json`：
 
 ```json
 {
@@ -97,39 +120,30 @@ claude-copilot --chat   # 透传所有 claude 原始参数
 }
 ```
 
-## 命令行选项
+## 开发
 
-### start
+所有 `claude-copilot` 子命令在源码阶段都有对应的 npm script，无需先 `bun run build`。
 
-```bash
-bun run start start [选项]
-# 或已全局安装时
-copilot-api start [选项]
-```
-
-| 选项           | 说明                                           | 默认值        | 别名 |
-| -------------- | ---------------------------------------------- | ------------- | ---- |
-| --port         | 监听端口                                       | 4141          | -p   |
-| --verbose      | 详细日志                                       | false         | -v   |
-| --account-type | 账号类型（individual/business/enterprise）      | individual    | -a   |
-| --manual       | 手动审批每个请求                               | false         |      |
-| --rate-limit   | 请求间隔（秒）                                 | 无            | -r   |
-| --wait         | 触发限流时等待而非报错                         | false         | -w   |
-| --github-token | 直接提供 GitHub token                          | 无            | -g   |
-| --claude-code  | 生成 Claude Code 启动命令                      | false         | -c   |
-| --show-token   | 显示 GitHub 和 Copilot token                   | false         |      |
-| --proxy-env    | 从环境变量初始化代理（HTTP_PROXY 等）          | false         |      |
-| --client-mode  | 客户端模式（claude-code/codex）                | claude-code   | -m   |
-
-### 其他命令
-
-- `auth` — 仅执行 GitHub 授权流程
-- `check-usage` — 查看当前 Copilot 用量和配额
-- `debug` — 输出诊断信息（`--json` 输出 JSON 格式）
+| 命令 | 说明 |
+| --- | --- |
+| `bun install` | 安装依赖 |
+| `bun run launch` | 等价于 `claude-copilot`（后台服务 + exec claude） |
+| `bun run launch:f` | 前台模式，启代理但不 exec claude，用于调试 |
+| `bun run dev` | 开发模式，前台启动代理服务，改代码自动重启（端口 4141） |
+| `bun run start` | 生产模式前台启动代理服务（端口 4141） |
+| `bun run start -- -p 8080` | 指定端口启动 |
+| `bun run auth` | GitHub 授权登录 |
+| `bun run stop` | 强制停止后台代理服务 |
+| `bun run check-usage` | 查看 Copilot 用量和配额 |
+| `bun run debug` | 输出诊断信息（加 `-- --json` 输出 JSON） |
+| `bun run build` | 构建（tsdown → dist/） |
+| `bun run typecheck` | TypeScript 类型检查 |
+| `bun run lint` | ESLint 检查 |
+| `bun test` | 运行测试 |
 
 ## API 端点
 
-服务默认监听 `http://localhost:4141`。
+服务监听随机端口（`claude-copilot` 自动配置）。开发模式 `claude-copilot start` 默认监听 `http://localhost:4141`。
 
 ### OpenAI 兼容
 
@@ -158,7 +172,6 @@ copilot-api start [选项]
 
 - 本项目处理敏感 token，切勿暴露到公网
 - `/token` 端点会泄露 Copilot token，仅限本地使用
-- 使用 `--rate-limit` 控制请求频率，避免触发 GitHub 滥用检测
 - 更多安全实践见 [SECURITY.md](./SECURITY.md)
 
 ## 许可证

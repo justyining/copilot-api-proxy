@@ -6,7 +6,7 @@ This project acts as a reverse-engineered proxy for the GitHub Copilot API. As s
 
 ## Supported Versions
 
-Security updates are applied to the latest version only. Please ensure you're running the most recent version of copilot-api.
+Security updates are applied to the latest version only. Please ensure you're running the most recent version of copilot-api-proxy.
 
 | Version | Supported          |
 | ------- | ------------------ |
@@ -150,9 +150,9 @@ Verbose mode may log additional information:
 
 #### Local Data Directory
 The application stores data in:
-- Linux/Mac: `~/.local/share/copilot-api`
-- Windows: `%LOCALAPPDATA%\copilot-api`
-- Docker: `/home/copilot/.local/share/copilot-api`
+- Linux/Mac: `~/.local/share/copilot-api-proxy`
+- Windows: `%LOCALAPPDATA%\copilot-api-proxy`
+- Docker: `/home/copilot/.local/share/copilot-api-proxy`
 
 **Security Recommendations:**
 - Ensure proper file permissions (600 or 700)

@@ -1,12 +1,12 @@
 services:
-  copilot-api:
+  copilot-api-proxy:
     build: .
-    image: copilot-api:latest
-    container_name: copilot-api
+    image: copilot-api-proxy:latest
+    container_name: copilot-api-proxy
     ports:
       - "4141:4141"
     environment:
       - GH_TOKEN=${GH_TOKEN}
     volumes:
-      - ./copilot-data:/home/copilot/.local/share/copilot-api
+      - ./copilot-data:/home/copilot/.local/share/copilot-api-proxy
     restart: unless-stopped

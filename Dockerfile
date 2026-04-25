@@ -13,7 +13,7 @@ WORKDIR /app
 # Create non-root user
 RUN addgroup -g 1001 -S copilot && \
     adduser -S copilot -u 1001 -G copilot && \
-    mkdir -p /home/copilot/.local/share/copilot-api && \
+    mkdir -p /home/copilot/.local/share/copilot-api-proxy && \
     chown -R copilot:copilot /home/copilot
 
 COPY ./package.json ./bun.lock ./
