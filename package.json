@@ -1,6 +1,6 @@
 {
-  "name": "copilot-api-proxy",
-  "version": "0.7.0",
+  "name": "copilot-coding-agents",
+  "version": "0.1.0",
   "description": "Turn GitHub Copilot into OpenAI/Anthropic API compatible server. Usable with Claude Code!",
   "keywords": [
     "proxy",
@@ -33,6 +33,7 @@
     "lint": "eslint --cache",
     "lint:all": "eslint --cache .",
     "prepack": "bun run build",
+    "pack:target": "bun run scripts/pack.ts",
     "prepare": "simple-git-hooks",
     "release": "bumpp && bun publish --access public",
     "typecheck": "tsc"
