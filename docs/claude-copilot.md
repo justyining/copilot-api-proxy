@@ -1,6 +1,6 @@
 # Claude Copilot
 
-用 GitHub Copilot 订阅驱动 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)，无需额外的 Anthropic API 付费。
+用 GitHub Copilot 订阅驱动 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)。
 
 ## 前置条件
 
@@ -10,16 +10,8 @@
 
 ## 安装
 
-### 1. 配置内网 npm registry
-
 ```bash
-npm config set @ning.yi:registry https://artifactory.nioint.com/artifactory/api/npm/dd-npm-all-virtual/
-```
-
-### 2. 安装 Claude Copilot
-
-```bash
-npm install -g @ning.yi/claude-copilot
+npm install -g <package-name>
 ```
 
 ## 使用
@@ -76,6 +68,19 @@ claude-copilot auth
 | `claude-copilot check-usage` | 查看 Copilot 用量 |
 | `claude-copilot debug` | 输出诊断信息 |
 
+## 使用 Tips
+
+**关于 Premium Requests**
+
+- Copilot 按 Premium Requests 计费，Opus 模型每次请求消耗 3 个 Premium Requests
+- 可通过 `claude-copilot check-usage` 查看当前用量
+
+**如何节省用量**
+
+- 同一个会话内持续对话不会产生新的计费——Copilot 后端会缓存 system prompt 的 KV Cache，只要缓存命中就不算新请求
+- Compact（`/compact`）会重置上下文，导致缓存失效，计为新请求
+- 每个 subagent 都是独立会话，会各自消耗 Premium Requests。避免使用会创建大量 subagent 的工具（如 Superpowers）
+
 ## 常见问题
 
 ### 授权失败或 token 过期
@@ -89,6 +94,13 @@ claude-copilot auth
 ### Claude Code 提示 API key 无效
 
 确认是通过 `claude-copilot` 启动的，不要单独运行 `claude`。`claude-copilot` 会自动注入代理配置。
+
+## 工作原理
+
+本项目基于 [copilot-api](https://github.com/ericc-ch/copilot-api) 改造而来，主要特性：
+
+- **自动维护代理服务**：后台自动启动和管理代理进程，无需手动操作
+- **与官方一致的 endpoint 和请求头**：使用与 VSCode Copilot 插件相同的 Agent endpoint 和 HTTP 请求头（编辑器版本、设备标识等），理论上与插件中的请求一致
 
 ## 问题反馈
 
