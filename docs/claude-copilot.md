@@ -78,6 +78,7 @@ claude-copilot auth
 **如何节省用量**
 
 - 同一个会话内持续对话不会产生新的计费——Copilot 后端会缓存 system prompt 的 KV Cache，只要缓存命中就不算新请求
+- 善用 `claude-copilot -c` 恢复上一次会话继续对话，避免不必要地开启新会话
 - Compact（`/compact`）会重置上下文，导致缓存失效，计为新请求
 - 每个 subagent 都是独立会话，会各自消耗 Premium Requests。避免使用会创建大量 subagent 的工具（如 Superpowers）
 
