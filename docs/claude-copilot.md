@@ -1,6 +1,9 @@
 # Claude Copilot
 
-用 GitHub Copilot 订阅驱动 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)。
+用 GitHub Copilot 订阅驱动 [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)。基于 [copilot-api](https://github.com/ericc-ch/copilot-api) 改造，相比原项目：
+
+- **与官方一致的请求特征**：使用与 VSCode Copilot 插件相同的 Agent endpoint 和 HTTP 请求头，降低被识别为第三方客户端的风险
+- **自动管理代理生命周期**：后台守护进程自动启停，无需手动操作
 
 ## 前置条件
 
@@ -22,7 +25,7 @@ npm install -g <package-name>
 claude-copilot
 ```
 
-> **注意：** 请始终通过 `claude-copilot` 启动 Claude Code，而不是直接运行 `claude`。直接运行 `claude` 不会走 Copilot 代理，会提示 API key 无效。
+> **注意：** 请始终通过 `claude-copilot` 启动 Claude Code，而不是直接运行 `claude`。直接运行 `claude` 会走 `~/.claude/settings.json` 中配置的模型服务。
 
 ### 首次使用
 
@@ -95,13 +98,6 @@ claude-copilot auth
 ### Claude Code 提示 API key 无效
 
 确认是通过 `claude-copilot` 启动的，不要单独运行 `claude`。`claude-copilot` 会自动注入代理配置。
-
-## 工作原理
-
-本项目基于 [copilot-api](https://github.com/ericc-ch/copilot-api) 改造而来，主要特性：
-
-- **自动维护代理服务**：后台自动启动和管理代理进程，无需手动操作
-- **与官方一致的 endpoint 和请求头**：使用与 VSCode Copilot 插件相同的 Agent endpoint 和 HTTP 请求头（编辑器版本、设备标识等），理论上与插件中的请求一致
 
 ## 问题反馈
 
