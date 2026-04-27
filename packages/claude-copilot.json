@@ -1,0 +1,6 @@
+{
+  "name": "claude-copilot",
+  "description": "Use GitHub Copilot subscription with Claude Code",
+  "bin": "claude-copilot",
+  "clientMode": "claude-code"
+}

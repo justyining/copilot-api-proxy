@@ -1,0 +1,6 @@
+{
+  "name": "codex-copilot",
+  "description": "Use GitHub Copilot subscription with Codex CLI",
+  "bin": "codex-copilot",
+  "clientMode": "codex"
+}
