@@ -104,4 +104,4 @@ claude-copilot auth
 
 ## 问题反馈
 
-如遇问题，请在 [GitLab Issues](https://git.nevint.com/ning.yi/claude-copilot/-/issues/new) 提交。
+如遇问题，请在仓库 Issues 中提交。
