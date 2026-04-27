@@ -63,10 +63,10 @@ function pack(targetName: string): string {
     pkg.description = target.description
     pkg.bin = { [target.bin]: "./dist/main.js" }
 
-    if (target.homepage) pkg.homepage = target.homepage
-    if (target.author) pkg.author = target.author
-    if (target.repository) pkg.repository = target.repository
-    if (target.bugs) pkg.bugs = target.bugs
+    if ("homepage" in target) pkg.homepage = target.homepage
+    if ("author" in target) pkg.author = target.author
+    if ("repository" in target) pkg.repository = target.repository
+    if ("bugs" in target) pkg.bugs = target.bugs
 
     delete pkg.scripts
     delete pkg.devDependencies
@@ -75,13 +75,15 @@ function pack(targetName: string): string {
 
     fs.writeFileSync(PKG_PATH, JSON.stringify(pkg, null, 2))
 
-    execSync("npm pack --ignore-scripts", { cwd: ROOT, stdio: "pipe" })
+    const output = execSync("npm pack --ignore-scripts", {
+      cwd: ROOT,
+      encoding: "utf8",
+    }).trim()
 
     fs.mkdirSync(OUT_DIR, { recursive: true })
 
-    const tgzName = `${target.name}-${pkg.version}.tgz`
-    const src = path.join(ROOT, tgzName)
-    const dest = path.join(OUT_DIR, tgzName)
+    const src = path.join(ROOT, output)
+    const dest = path.join(OUT_DIR, output)
     fs.renameSync(src, dest)
 
     return dest
