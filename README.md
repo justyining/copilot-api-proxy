@@ -25,6 +25,13 @@ claude-copilot
 
 首次使用会自动引导 GitHub 授权流程，之后每次运行会自动启动后台代理服务并启动 Claude Code。代理服务使用随机端口，无需担心端口冲突。
 
+所有参数透传给 `claude`，例如：
+
+```bash
+claude-copilot -p "explain this project"
+claude-copilot --resume
+```
+
 多个 `claude-copilot` 实例共享同一个后台代理服务，当所有实例关闭后服务自动停止。
 
 ### 从源码运行
@@ -41,22 +48,10 @@ bun install
 bun run auth
 ```
 
-启动代理服务（前台，端口 4141）：
+然后启动（等价于 `claude-copilot`）：
 
 ```bash
-bun run start
-```
-
-开发模式（改代码自动重启）：
-
-```bash
-bun run dev
-```
-
-验证服务是否正常：
-
-```bash
-curl http://localhost:4141/v1/models
+bun run launch
 ```
 
 ### Docker 部署
@@ -79,40 +74,43 @@ docker compose up -d
 
 ## 命令行
 
-### claude-copilot
+### claude-copilot（默认）
 
-启动后台代理服务并运行 Claude Code：
+启动后台代理服务并运行 Claude Code。首次运行时如果未登录，会自动执行 GitHub 授权流程。
 
 ```bash
-claude-copilot          # 首次运行会自动引导登录
+claude-copilot                       # 启动代理 + claude
+claude-copilot -p "hello"           # 所有参数透传给 claude
 ```
 
-首次运行时，如果未登录会自动执行 GitHub 授权流程。登录完成后，会自动启动后台代理服务（随机端口）并 exec 启动 `claude`。
+启动流程：检查 GitHub token → 启动/复用后台 daemon（随机端口）→ 注册客户端 → 临时注入代理设置到 `.claude/settings.local.json` → exec `claude` → 退出时恢复设置并注销客户端。
 
 当所有使用该代理服务的 `claude-copilot` 实例关闭后，后台服务自动停止。
 
-### 其他命令
+### 子命令
 
-- `claude-copilot auth` — 执行 GitHub 授权流程
-- `claude-copilot stop` — 强制停止后台代理服务
-- `claude-copilot start [选项]` — 前台启动代理服务（开发用，端口默认 4141）
-- `claude-copilot check-usage` — 查看当前 Copilot 用量和配额
-- `claude-copilot debug` — 输出诊断信息（`--json` 输出 JSON 格式）
+| 命令 | 说明 |
+| --- | --- |
+| `claude-copilot auth` | 执行 GitHub 授权流程 |
+| `claude-copilot check-usage` | 查看当前 Copilot 用量和配额 |
+| `claude-copilot debug` | 输出诊断信息（`--json` 输出 JSON 格式） |
+
+> `__serve` 为内部子命令，由 daemon 进程自动调用，用户不应直接使用。
 
 ### 手动配置 settings.json
 
-如需直接使用代理而不通过 `claude-copilot` 命令（如 Docker 部署或开发模式），可在项目根目录创建 `.claude/settings.json`：
+如需直接使用代理而不通过 `claude-copilot` 命令（如 Docker 部署或开发模式 `bun run dev`），可在项目根目录创建 `.claude/settings.json`：
 
 ```json
 {
   "env": {
-    "ANTHROPIC_AUTH_TOKEN": "yougotthekey",
+    "ANTHROPIC_AUTH_TOKEN": "dummy",
     "ANTHROPIC_BASE_URL": "http://localhost:4141",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4.7",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4.6",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4.6",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4.5",
-    "CLAUDE_CODE_DISABLE_1M_CONTEXT": 1,
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
   },
   "permissions": {
     "deny": ["WebSearch"]
@@ -127,14 +125,10 @@ claude-copilot          # 首次运行会自动引导登录
 | 命令 | 说明 |
 | --- | --- |
 | `bun install` | 安装依赖 |
-| `bun run launch` | 等价于 `claude-copilot`（后台服务 + exec claude） |
-| `bun run launch:f` | 前台模式，启代理但不 exec claude，用于调试 |
-| `bun run dev` | 开发模式，前台启动代理服务，改代码自动重启（端口 4141） |
-| `bun run dev:claude` | 启动 claude 指向 `bun run dev` 的代理服务（另开终端用） |
-| `bun run start` | 生产模式前台启动代理服务（端口 4141） |
-| `bun run start -- -p 8080` | 指定端口启动 |
+| `bun run launch` | 等价于 `claude-copilot`（后台 daemon + exec claude） |
+| `bun run dev` | 开发模式，前台启动代理服务（端口 4141），改代码自动重启 |
+| `bun run dev:claude` | 启动 claude 指向 `bun run dev` 的代理服务（需另开终端先运行 `bun run dev`） |
 | `bun run auth` | GitHub 授权登录 |
-| `bun run stop` | 强制停止后台代理服务 |
 | `bun run check-usage` | 查看 Copilot 用量和配额 |
 | `bun run debug` | 输出诊断信息（加 `-- --json` 输出 JSON） |
 | `bun run build` | 构建（tsdown → dist/） |
@@ -142,9 +136,11 @@ claude-copilot          # 首次运行会自动引导登录
 | `bun run lint` | ESLint 检查 |
 | `bun test` | 运行测试 |
 
+**典型开发工作流**：终端 1 运行 `bun run dev` 启动代理服务，终端 2 运行 `bun run dev:claude` 启动连接到该代理的 Claude Code。修改源码后代理服务自动重启。
+
 ## API 端点
 
-服务监听随机端口（`claude-copilot` 自动配置）。开发模式 `claude-copilot start` 默认监听 `http://localhost:4141`。
+服务监听随机端口（`claude-copilot` 自动配置）。开发模式 `bun run dev` 默认监听 `http://localhost:4141`。
 
 ### OpenAI 兼容
 

@@ -1,21 +1,17 @@
-# AGENTS.md
+# CLAUDE.md
 
 ## Build, Lint, and Test Commands
 
-- **Build:**  
-  `bun run build` (uses tsup)
-- **Dev:**  
-  `bun run dev`
-- **Lint:**  
-  `bun run lint` (uses @echristian/eslint-config)
-- **Lint & Fix staged files:**  
-  `bunx lint-staged`
-- **Test all:**  
-   `bun test`
-- **Test single file:**  
-   `bun test tests/claude-request.test.ts`
-- **Start (prod):**  
-  `bun run start`
+- **Build:** `bun run build` (uses tsdown)
+- **Dev:** `bun run dev` — starts proxy server on port 4141 with auto-reload on file changes
+- **Dev (Claude):** `bun run dev:claude` — launches claude pointing to the dev proxy (run `bun run dev` in another terminal first)
+- **Launch:** `bun run launch` — equivalent to `claude-copilot` (background daemon + exec claude)
+- **Auth:** `bun run auth` — GitHub OAuth login
+- **Lint:** `bun run lint` (uses @echristian/eslint-config)
+- **Lint & Fix staged files:** `bunx lint-staged`
+- **Test all:** `bun test`
+- **Test single file:** `bun test tests/claude-request.test.ts`
+- **Typecheck:** `bun run typecheck`
 
 ## Code Style Guidelines
 
