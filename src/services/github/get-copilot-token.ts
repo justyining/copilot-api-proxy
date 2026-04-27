@@ -20,4 +20,7 @@ interface GetCopilotTokenResponse {
   expires_at: number
   refresh_in: number
   token: string
+  endpoints?: {
+    api?: string
+  }
 }

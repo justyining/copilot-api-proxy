@@ -16,13 +16,15 @@ const writeGithubToken = (token: string) =>
   fs.writeFile(PATHS.GITHUB_TOKEN_PATH, token)
 
 export const setupCopilotToken = async () => {
-  const { token, refresh_in } = await getCopilotToken()
+  const { token, refresh_in, endpoints } = await getCopilotToken()
   state.copilotToken = token
 
   consola.debug("GitHub Copilot Token fetched successfully!")
   if (state.showToken) {
     consola.info("Copilot token:", token)
   }
+
+  applyAccountTypeFromEndpoint(endpoints?.api)
 
   const refreshInterval = (refresh_in - 60) * 1000
   let consecutiveFailures = 0
@@ -111,12 +113,11 @@ export async function setupGitHubToken(
       return
     }
 
-    consola.info("Not logged in, getting new access token")
     const response = await getDeviceCode()
     consola.debug("Device code response:", response)
 
     consola.info(
-      `Please enter the code "${response.user_code}" in ${response.verification_uri}`,
+      `Open ${response.verification_uri} and enter code: ${response.user_code}`,
     )
 
     const token = await pollAccessToken(response)
@@ -141,4 +142,29 @@ export async function setupGitHubToken(
 async function logUser() {
   const user = await getGitHubUser()
   consola.info(`Logged in as ${user.login}`)
+}
+
+const KNOWN_ACCOUNT_TYPES = new Set(["individual", "business", "enterprise"])
+
+function applyAccountTypeFromEndpoint(apiUrl: string | undefined): void {
+  const override = process.env.COPILOT_ACCOUNT_TYPE
+  if (override) {
+    state.accountType = override
+    consola.info(`Account type from COPILOT_ACCOUNT_TYPE: ${override}`)
+    return
+  }
+
+  if (!apiUrl) return
+
+  // e.g. https://api.business.githubcopilot.com → "business"
+  const match = /^https?:\/\/api\.([^.]+)\.githubcopilot\.com/.exec(apiUrl)
+  const detected = match?.[1]
+  if (!detected || !KNOWN_ACCOUNT_TYPES.has(detected)) return
+
+  if (detected !== state.accountType) {
+    consola.info(
+      `Detected account type: ${detected} (was ${state.accountType})`,
+    )
+    state.accountType = detected
+  }
 }
