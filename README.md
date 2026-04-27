@@ -132,11 +132,25 @@ claude-copilot -p "hello"           # 所有参数透传给 claude
 | `bun run check-usage` | 查看 Copilot 用量和配额 |
 | `bun run debug` | 输出诊断信息（加 `-- --json` 输出 JSON） |
 | `bun run build` | 构建（tsdown → dist/） |
+| `bun run pack:target claude-copilot` | 打包指定目标为 `.tgz` |
+| `bun run pack:target --all` | 打包所有目标 |
 | `bun run typecheck` | TypeScript 类型检查 |
 | `bun run lint` | ESLint 检查 |
 | `bun test` | 运行测试 |
 
 **典型开发工作流**：终端 1 运行 `bun run dev` 启动代理服务，终端 2 运行 `bun run dev:claude` 启动连接到该代理的 Claude Code。修改源码后代理服务自动重启。
+
+### 打包
+
+项目支持从同一代码库打包多个 npm 包，目标配置在 `packages/` 目录下：
+
+```bash
+bun run pack:target claude-copilot   # 打包 claude-copilot
+bun run pack:target codex-copilot    # 打包 codex-copilot
+bun run pack:target --all            # 打包所有目标
+```
+
+产物输出到 `dist-packages/` 目录，可通过 `npm publish <file>.tgz --registry <url>` 发布到任意 registry。
 
 ## API 端点
 

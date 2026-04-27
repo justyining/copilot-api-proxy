@@ -7,10 +7,8 @@ import { deregisterClient, ensureServer, registerClient } from "./lib/daemon"
 import { ensurePaths, PATHS } from "./lib/paths"
 import { setupGitHubToken } from "./lib/token"
 
-const __dirname = import.meta.dirname
-const PROJECT_ROOT = path.resolve(__dirname, "..")
 const SETTINGS_LOCAL_PATH = path.join(
-  PROJECT_ROOT,
+  process.cwd(),
   ".claude",
   "settings.local.json",
 )
