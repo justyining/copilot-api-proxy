@@ -9,10 +9,31 @@ import {
   HTTPError,
 } from "~/lib/error"
 import { state } from "~/lib/state"
+import { refreshCopilotToken } from "~/lib/token"
+
+async function handle401(
+  payload: ChatCompletionsPayload,
+  options: { alreadyRefreshed?: boolean },
+): Promise<ChatCompletionResult> {
+  if (options.alreadyRefreshed) {
+    throw createAuthenticationError("Invalid or expired GitHub Copilot token")
+  }
+  consola.warn("Copilot returned 401 — refreshing token and retrying once")
+  try {
+    await refreshCopilotToken()
+  } catch (refreshErr) {
+    consola.error("Failed to refresh Copilot token after 401:", refreshErr)
+    throw createAuthenticationError("Invalid or expired GitHub Copilot token")
+  }
+  return createChatCompletions(payload, { alreadyRefreshed: true })
+}
+
+type ChatCompletionResult = ReturnType<typeof events> | ChatCompletionResponse
 
 export const createChatCompletions = async (
   payload: ChatCompletionsPayload,
-) => {
+  options: { alreadyRefreshed?: boolean } = {},
+): Promise<ChatCompletionResult> => {
   if (!state.copilotToken) {
     throw createAuthenticationError("Copilot token not found")
   }
@@ -79,7 +100,7 @@ export const createChatCompletions = async (
 
     // Handle specific error status codes
     if (response.status === 401) {
-      throw createAuthenticationError("Invalid or expired GitHub Copilot token")
+      return handle401(payload, options)
     }
 
     if (response.status === 503) {

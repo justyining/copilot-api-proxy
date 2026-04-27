@@ -44,7 +44,7 @@ export async function runLaunch({
       ...process.env,
       ANTHROPIC_BASE_URL: serverUrl,
       ANTHROPIC_AUTH_TOKEN: "dummy",
-      DISABLE_NON_ESSENTIAL_MODEL_CALLS: "1",
+      CLAUDE_CODE_DISABLE_1M_CONTEXT: "1",
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
     }
 

@@ -130,6 +130,7 @@ claude-copilot          # 首次运行会自动引导登录
 | `bun run launch` | 等价于 `claude-copilot`（后台服务 + exec claude） |
 | `bun run launch:f` | 前台模式，启代理但不 exec claude，用于调试 |
 | `bun run dev` | 开发模式，前台启动代理服务，改代码自动重启（端口 4141） |
+| `bun run dev:claude` | 启动 claude 指向 `bun run dev` 的代理服务（另开终端用） |
 | `bun run start` | 生产模式前台启动代理服务（端口 4141） |
 | `bun run start -- -p 8080` | 指定端口启动 |
 | `bun run auth` | GitHub 授权登录 |

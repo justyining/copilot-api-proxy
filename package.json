@@ -27,6 +27,7 @@
     "check-usage": "bun run ./src/main.ts -- check-usage",
     "debug": "bun run ./src/main.ts -- debug",
     "dev": "bun run --watch ./src/main.ts -- start",
+    "dev:claude": "ANTHROPIC_BASE_URL=http://localhost:4141 ANTHROPIC_AUTH_TOKEN=dummy CLAUDE_CODE_DISABLE_1M_CONTEXT=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 claude",
     "knip": "knip-bun",
     "launch": "bun run ./src/main.ts",
     "launch:f": "bun run ./src/main.ts -- -f",

@@ -67,6 +67,30 @@ export function stopTokenRefresh() {
   }
 }
 
+let pendingRefresh: Promise<void> | null = null
+
+/**
+ * One-shot Copilot token refresh, deduped across concurrent callers.
+ * Updates state.copilotToken; does not touch the periodic refresh timer.
+ * Used by request error handlers when upstream returns 401.
+ */
+export function refreshCopilotToken(): Promise<void> {
+  if (pendingRefresh) return pendingRefresh
+  pendingRefresh = (async () => {
+    try {
+      const { token } = await getCopilotToken()
+      state.copilotToken = token
+      consola.debug("Copilot token refreshed on demand")
+      if (state.showToken) {
+        consola.info("Refreshed Copilot token (on demand):", token)
+      }
+    } finally {
+      pendingRefresh = null
+    }
+  })()
+  return pendingRefresh
+}
+
 interface SetupGitHubTokenOptions {
   force?: boolean
 }

@@ -8,6 +8,7 @@ import {
   HTTPError,
 } from "~/lib/error"
 import { state } from "~/lib/state"
+import { refreshCopilotToken } from "~/lib/token"
 
 /**
  * Normalize thinking.type per the target model's capabilities:
@@ -167,6 +168,7 @@ function injectDefaults(
 
 export async function createMessages(
   rawPayload: Record<string, unknown>,
+  options: { alreadyRefreshed?: boolean } = {},
 ): Promise<Response> {
   if (!state.copilotToken) {
     throw createAuthenticationError("Copilot token not found")
@@ -201,7 +203,7 @@ export async function createMessages(
   const response = await fetchWithRetry(url, { headers, body })
 
   if (!response.ok) {
-    return handleErrorResponse(response, payload)
+    return handleErrorResponse(response, payload, options)
   }
 
   return response
@@ -269,6 +271,7 @@ async function fetchOnce(
 async function handleErrorResponse(
   response: Response,
   originalPayload: Record<string, unknown>,
+  options: { alreadyRefreshed?: boolean } = {},
 ): Promise<Response> {
   if (response.status === 400) {
     const errorBody = await readErrorBody(response)
@@ -279,7 +282,7 @@ async function handleErrorResponse(
         "Retrying /v1/messages with patched payload after 400 error:",
         errorBody.error?.message ?? "unknown",
       )
-      return createMessages(patched)
+      return createMessages(patched, options)
     }
 
     throw new HTTPError(
@@ -298,6 +301,18 @@ async function handleErrorResponse(
   )
 
   if (response.status === 401) {
+    if (!options.alreadyRefreshed) {
+      consola.warn("Copilot returned 401 — refreshing token and retrying once")
+      try {
+        await refreshCopilotToken()
+      } catch (refreshErr) {
+        consola.error("Failed to refresh Copilot token after 401:", refreshErr)
+        throw createAuthenticationError(
+          "Invalid or expired GitHub Copilot token",
+        )
+      }
+      return createMessages(originalPayload, { alreadyRefreshed: true })
+    }
     throw createAuthenticationError("Invalid or expired GitHub Copilot token")
   }
 
