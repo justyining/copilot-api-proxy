@@ -3,7 +3,7 @@ import path from "node:path"
 
 import { PATHS } from "./paths"
 
-const CLEANUP_INTERVAL_MS = 10_000
+const CLEANUP_INTERVAL_MS = 300_000
 
 let cleanupTimer: ReturnType<typeof setInterval> | undefined
 

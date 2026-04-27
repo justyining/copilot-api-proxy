@@ -6,49 +6,39 @@ import { auth } from "./auth"
 import { checkUsage } from "./check-usage"
 import { debug } from "./debug"
 import { runLaunch } from "./launch"
-import { start } from "./lib/start-command"
 import { serve } from "./serve"
-import { stop } from "./stop"
 
-const SUBCOMMAND_NAMES = new Set([
-  "auth",
-  "start",
-  "check-usage",
-  "debug",
-  "stop",
-  "__serve",
-])
+const SUBCOMMAND_NAMES = new Set(["auth", "check-usage", "debug", "__serve"])
+
+// Decide: subcommand mode or launch mode?
+// In launch mode, ALL user args go to claude — citty must never see them.
+const firstPositional = process.argv.find(
+  (a, i) => i >= 2 && !a.startsWith("-"),
+)
+const isSubcommand =
+  firstPositional !== undefined && SUBCOMMAND_NAMES.has(firstPositional)
+
+let claudeArgs: Array<string> = []
+if (!isSubcommand && process.argv.length > 2) {
+  claudeArgs = process.argv.splice(2)
+}
 
 const main = defineCommand({
   meta: {
     name: "claude-copilot",
     description: "GitHub Copilot API proxy for Claude Code",
   },
-  args: {
-    foreground: {
-      alias: "f",
-      type: "boolean",
-      default: false,
-      description: "Run in foreground mode (don't exec claude, for debugging)",
-    },
-  },
+  args: {},
   subCommands: {
     auth,
-    start,
     "check-usage": checkUsage,
     debug,
-    stop,
     __serve: serve,
   },
-  async run({ args, rawArgs }) {
-    // citty also runs the parent's run() after a matched subcommand's run();
-    // skip the launch flow in that case.
-    const firstPositional = rawArgs.find((a) => !a.startsWith("-"))
-    if (firstPositional && SUBCOMMAND_NAMES.has(firstPositional)) {
-      return
-    }
+  async run() {
+    if (isSubcommand) return
 
-    await runLaunch({ foreground: args.foreground })
+    await runLaunch({ claudeArgs })
   },
 })
 

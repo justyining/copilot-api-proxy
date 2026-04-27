@@ -1,4 +1,3 @@
-import consola from "consola"
 import { spawn } from "node:child_process"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -83,8 +82,6 @@ export async function spawnServer(): Promise<number> {
   if (pid === undefined) {
     throw new Error("Failed to spawn background server: no pid")
   }
-  consola.info(`Starting background server (PID ${pid})...`)
-
   // Wait for PID file to appear with the actual port
   const deadline = Date.now() + READY_TIMEOUT_MS
   while (Date.now() < deadline) {
@@ -95,7 +92,6 @@ export async function spawnServer(): Promise<number> {
       && pidInfo.port !== 0 // Verify server is ready
       && (await isServerReady(pidInfo.port))
     ) {
-      consola.success(`Server ready on port ${pidInfo.port}`)
       return pidInfo.port
     }
     await new Promise((r) => setTimeout(r, READY_POLL_INTERVAL_MS))
@@ -116,14 +112,10 @@ export async function ensureServer(): Promise<number> {
   if (pidInfo) {
     const alive = isProcessAlive(pidInfo.pid)
     if (alive && (await isServerHealthy(pidInfo.port))) {
-      consola.info(
-        `Reusing existing server (PID ${pidInfo.pid}, port ${pidInfo.port})`,
-      )
       return pidInfo.port
     }
 
     // Stale PID file
-    consola.info("Stale server PID file, removing")
     await removePidFile()
   }
 
